@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { User, UserPlan, PLAN_LIMITS, PlanLimits } from '../types';
 import { supabase } from '../lib/supabase';
 import type { Session } from '@supabase/supabase-js';
@@ -62,13 +62,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [authScreen, setAuthScreen] = useState<AuthScreen>('login');
-  const mountedRef = useRef(true);
 
   const isAuthenticated = !!session;
   const planLimits = PLAN_LIMITS[currentUser.plan];
   const isPremium = currentUser.plan === 'premium';
   const isAdmin = currentUser.isAdmin;
 
+  // Busca o perfil e atualiza currentUser
   const fetchProfile = useCallback(async (userId: string) => {
     try {
       const { data, error } = await supabase
@@ -76,53 +76,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .select('*')
         .eq('id', userId)
         .single();
-      if (error) {
-        console.error('[Auth] Erro ao buscar perfil:', error.message);
-        return null;
-      }
-      return data as Profile;
+      if (!error && data) setCurrentUser(profileToUser(data as Profile));
     } catch {
-      return null;
+      // silencioso — não bloqueia o fluxo
     }
   }, []);
 
+  // Efeito 1: onAuthStateChange — ÚNICA fonte de verdade da sessão
   useEffect(() => {
-    mountedRef.current = true;
+    let resolved = false;
 
-    // Passo 1: getSession() determina o estado inicial e finaliza o loading EXATAMENTE UMA VEZ.
-    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
-      if (!mountedRef.current) return;
-      setSession(s);
-      if (s?.user) {
-        const profile = await fetchProfile(s.user.id);
-        if (mountedRef.current && profile) setCurrentUser(profileToUser(profile));
-      }
-      // Garante que o loading termina independente do resultado
-      if (mountedRef.current) setLoading(false);
-    }).catch(() => {
-      if (mountedRef.current) setLoading(false);
-    });
-
-    // Passo 2: onAuthStateChange cuida apenas das mudanças POSTERIORES (login, logout, refresh)
-    // NÃO mexe em loading para não interferir com a inicialização acima.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, s) => {
-        if (!mountedRef.current) return;
         setSession(s);
-        if (s?.user) {
-          const profile = await fetchProfile(s.user.id);
-          if (mountedRef.current && profile) setCurrentUser(profileToUser(profile));
-        } else {
+        if (!s) {
           setCurrentUser(EMPTY_USER);
+        }
+        // Finaliza o loading apenas na primeira vez que o estado é conhecido
+        if (!resolved) {
+          resolved = true;
+          setLoading(false);
         }
       }
     );
 
+    // Safety net: se o onAuthStateChange não disparar em 4s, libera o loading
+    const safetyTimeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        setLoading(false);
+      }
+    }, 4000);
+
     return () => {
-      mountedRef.current = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, []); // sem dependências — roda só na montagem
+
+  // Efeito 2: quando a sessão muda, busca o perfil do usuário
+  useEffect(() => {
+    if (session?.user) {
+      fetchProfile(session.user.id);
+    }
+  }, [session, fetchProfile]);
 
   const login = useCallback(async (email: string, password: string) => {
     if (!email || !password) throw new Error('Email e senha são obrigatórios');
