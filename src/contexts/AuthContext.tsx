@@ -62,8 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [authScreen, setAuthScreen] = useState<AuthScreen>('login');
-  // Flag para garantir que o loading só seja finalizado uma vez
-  const initializedRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const isAuthenticated = !!session;
   const planLimits = PLAN_LIMITS[currentUser.plan];
@@ -71,71 +70,79 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAdmin = currentUser.isAdmin;
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    if (error) {
-      console.error('[Auth] Erro ao buscar perfil:', error.message);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      if (error) {
+        console.error('[Auth] Erro ao buscar perfil:', error.message);
+        return null;
+      }
+      return data as Profile;
+    } catch {
       return null;
     }
-    return data as Profile;
   }, []);
 
   useEffect(() => {
-    // Usar apenas onAuthStateChange que já emite INITIAL_SESSION na inicialização.
-    // Isso evita a race condition entre getSession() e onAuthStateChange.
+    mountedRef.current = true;
+
+    // Passo 1: getSession() determina o estado inicial e finaliza o loading EXATAMENTE UMA VEZ.
+    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
+      if (!mountedRef.current) return;
+      setSession(s);
+      if (s?.user) {
+        const profile = await fetchProfile(s.user.id);
+        if (mountedRef.current && profile) setCurrentUser(profileToUser(profile));
+      }
+      // Garante que o loading termina independente do resultado
+      if (mountedRef.current) setLoading(false);
+    }).catch(() => {
+      if (mountedRef.current) setLoading(false);
+    });
+
+    // Passo 2: onAuthStateChange cuida apenas das mudanças POSTERIORES (login, logout, refresh)
+    // NÃO mexe em loading para não interferir com a inicialização acima.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, s) => {
+        if (!mountedRef.current) return;
         setSession(s);
         if (s?.user) {
           const profile = await fetchProfile(s.user.id);
-          if (profile) setCurrentUser(profileToUser(profile));
+          if (mountedRef.current && profile) setCurrentUser(profileToUser(profile));
         } else {
           setCurrentUser(EMPTY_USER);
-        }
-        // Garante que o loading termine apenas uma vez após a sessão inicial
-        if (!initializedRef.current) {
-          initializedRef.current = true;
-          setLoading(false);
         }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mountedRef.current = false;
+      subscription.unsubscribe();
+    };
   }, [fetchProfile]);
 
   const login = useCallback(async (email: string, password: string) => {
-    if (!email || !password) {
-      throw new Error('Email e senha são obrigatórios');
-    }
+    if (!email || !password) throw new Error('Email e senha são obrigatórios');
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      if (error.message.includes('Invalid login credentials')) {
-        throw new Error('Email ou senha incorretos');
-      }
+      if (error.message.includes('Invalid login credentials')) throw new Error('Email ou senha incorretos');
       throw new Error(error.message);
     }
   }, []);
 
   const register = useCallback(async (name: string, email: string, password: string) => {
-    if (!name.trim() || !email || !password) {
-      throw new Error('Todos os campos são obrigatórios');
-    }
-    if (password.length < 6) {
-      throw new Error('Senha deve ter pelo menos 6 caracteres');
-    }
+    if (!name.trim() || !email || !password) throw new Error('Todos os campos são obrigatórios');
+    if (password.length < 6) throw new Error('Senha deve ter pelo menos 6 caracteres');
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { name: name.trim() } },
     });
     if (error) {
-      if (error.message.includes('already registered')) {
-        throw new Error('Este email já está cadastrado');
-      }
+      if (error.message.includes('already registered')) throw new Error('Este email já está cadastrado');
       throw new Error(error.message);
     }
   }, []);
@@ -156,19 +163,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const upgradeToPremium = useCallback(async () => {
     if (!session?.user) return;
-    const { error } = await supabase
-      .from('profiles')
-      .update({ plan: 'premium' })
-      .eq('id', session.user.id);
+    const { error } = await supabase.from('profiles').update({ plan: 'premium' }).eq('id', session.user.id);
     if (!error) setCurrentUser(prev => ({ ...prev, plan: 'premium' as UserPlan }));
   }, [session]);
 
   const downgradeToFree = useCallback(async () => {
     if (!session?.user) return;
-    const { error } = await supabase
-      .from('profiles')
-      .update({ plan: 'free' })
-      .eq('id', session.user.id);
+    const { error } = await supabase.from('profiles').update({ plan: 'free' }).eq('id', session.user.id);
     if (!error) setCurrentUser(prev => ({ ...prev, plan: 'free' as UserPlan }));
   }, [session]);
 
@@ -185,14 +186,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       profileUpdates.daily_list_time = updates.notifications.dailyListTime;
     }
     if (Object.keys(profileUpdates).length > 0) {
-      const { error } = await supabase
-        .from('profiles')
-        .update(profileUpdates)
-        .eq('id', session.user.id);
-      if (error) {
-        console.error('[Auth] Erro ao atualizar perfil:', error.message);
-        return;
-      }
+      const { error } = await supabase.from('profiles').update(profileUpdates).eq('id', session.user.id);
+      if (error) { console.error('[Auth] Erro ao atualizar perfil:', error.message); return; }
     }
     setCurrentUser(prev => ({ ...prev, ...updates }));
   }, [session]);
@@ -203,22 +198,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{
-      currentUser,
-      planLimits,
-      isPremium,
-      isAdmin,
-      isAuthenticated,
-      loading,
-      authScreen,
-      setAuthScreen,
-      login,
-      register,
-      forgotPassword,
-      logout,
-      upgradeToPremium,
-      downgradeToFree,
-      updateUser,
-      canAddStudent,
+      currentUser, planLimits, isPremium, isAdmin, isAuthenticated, loading,
+      authScreen, setAuthScreen, login, register, forgotPassword, logout,
+      upgradeToPremium, downgradeToFree, updateUser, canAddStudent,
     }}>
       {children}
     </AuthContext.Provider>
