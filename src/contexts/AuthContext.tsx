@@ -91,21 +91,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let resolved = false;
 
+    const logSession = (label: string, session: Session | null) => {
+      const userId = session?.user?.id ?? 'none';
+      const expires = session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'n/a';
+      console.log(`[Auth] ${label} user=${userId} expires=${expires}`);
+    };
+
     // Força a busca imediata da sessão do localStorage ao montar
     const initSession = async () => {
-      const { data: { session: s } } = await supabase.auth.getSession();
-      if (s?.user) {
-        console.log('[Auth] Inicializando com sessão ativa:', s.user.id);
-        const profile = await fetchProfile(s.user.id);
-        if (mountedRef.current && profile) {
-          setCurrentUser(profileToUser(profile));
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.warn('[Auth] getSession error:', error.message);
         }
-        setSession(s);
-      }
-      
-      if (mountedRef.current && !resolved) {
-        resolved = true;
-        setLoading(false);
+        const s = data.session;
+        if (s?.user) {
+          logSession('init session found', s);
+          const profile = await fetchProfile(s.user.id);
+          if (mountedRef.current && profile) {
+            setCurrentUser(profileToUser(profile));
+          }
+          setSession(s);
+        } else {
+          logSession('init session empty', s);
+        }
+      } finally {
+        if (mountedRef.current && !resolved) {
+          resolved = true;
+          setLoading(false);
+        }
       }
     };
 
@@ -113,8 +127,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, s) => {
-        console.log('[Auth] State Change:', event, s?.user?.id);
-        setSession(s);
+        logSession(`state change ${event}`, s ?? null);
+        setSession(s ?? null);
         
         if (s?.user) {
           const profile = await fetchProfile(s.user.id);
@@ -134,6 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Garante que os buckets de storage existem
           ensureStorageBuckets();
         } else {
+          // Caso o SDK remova a sessão (ex.: refresh falhou), limpamos o usuário local
           setCurrentUser(EMPTY_USER);
         }
         
