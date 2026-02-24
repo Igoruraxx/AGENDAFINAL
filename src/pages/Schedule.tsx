@@ -700,7 +700,7 @@ const Schedule: React.FC = () => {
                 </button>
                 <button
                   onClick={handleQuickAdd}
-                  disabled={!quickAddName.trim()}
+                  disabled={quickAddMode === 'trial' ? !quickAddName.trim() : !quickAddStudentId}
                   className="btn btn-primary flex-1 text-sm font-bold disabled:opacity-40"
                 >
                   Agendar
