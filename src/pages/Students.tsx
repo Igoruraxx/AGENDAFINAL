@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { Plus, Search, Phone, Calendar, DollarSign, Check, X, Trash2, Users, Crown, Lock, Copy, CalendarDays } from 'lucide-react';
+import { Plus, Search, Phone, Calendar, DollarSign, Check, X, Trash2, Users, Crown, Lock, Copy, CalendarDays, Share2, Link2 } from 'lucide-react';
 import { Student } from '../types';
 import { useToast } from '../hooks/useToast';
 import { useFormValidation, commonValidations } from '../hooks/useFormValidation';
@@ -10,7 +10,8 @@ import PricingPlans from '../components/PricingPlans';
 import { addDays, startOfWeek, format } from 'date-fns';
 
 const Students: React.FC = () => {
-  const { students, addStudent, updateStudent, deleteStudent } = useStudents();
+  const { students, addStudent, updateStudent, deleteStudent, generateShareToken } = useStudents();
+  const [sharingId, setSharingId] = useState<string | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -397,7 +398,30 @@ const Students: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <span 
+                    <span
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setSharingId(student.id);
+                        try {
+                          const token = await generateShareToken(student.id);
+                          const link = `${window.location.origin}/s/${token}`;
+                          await navigator.clipboard.writeText(link);
+                          alert(`Link copiado!\n\n${link}`);
+                        } catch {
+                          alert('Não foi possível gerar o link. Verifique se a coluna share_token existe no banco.');
+                        } finally {
+                          setSharingId(null);
+                        }
+                      }}
+                      className="p-1.5 rounded-lg transition-all touch-manipulation hover:bg-blue-500/10"
+                      title="Compartilhar link de evolução"
+                      style={{ color: sharingId === student.id ? 'var(--accent)' : 'var(--n-400)' }}
+                      role="button"
+                      aria-label={`Compartilhar evolução de ${student.name}`}
+                    >
+                      {sharingId === student.id ? <Link2 size={14} /> : <Share2 size={14} />}
+                    </span>
+                    <span
                       onClick={(e) => { e.stopPropagation(); handleDelete(student.id); }} 
                       className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all touch-manipulation" 
                       title="Excluir"

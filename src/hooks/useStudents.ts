@@ -17,6 +17,7 @@ function dbToStudent(row: DbStudent): Student {
     isConsulting: row.is_consulting,
     isActive: row.is_active,
     billingDay: row.billing_day ?? undefined,
+    shareToken: (row as any).share_token ?? undefined,
   };
 }
 
@@ -155,6 +156,32 @@ export function useStudents() {
     setStudents(prev => prev.filter(s => s.id !== id));
   }, []);
 
+  // Garante que o aluno tem share_token e retorna-o
+  const generateShareToken = useCallback(async (studentId: string): Promise<string> => {
+    // Primeiro busca o token existente
+    const { data: existing } = await supabase
+      .from('students')
+      .select('share_token')
+      .eq('id', studentId)
+      .single();
+
+    if ((existing as any)?.share_token) {
+      return (existing as any).share_token as string;
+    }
+
+    // Gera um UUID aleatório se não existir
+    const newToken = crypto.randomUUID();
+    const { error: err } = await supabase
+      .from('students')
+      .update({ share_token: newToken } as any)
+      .eq('id', studentId);
+
+    if (err) throw new Error(err.message);
+
+    setStudents(prev => prev.map(s => s.id === studentId ? { ...s, shareToken: newToken } : s));
+    return newToken;
+  }, []);
+
   return {
     students,
     loading,
@@ -162,6 +189,7 @@ export function useStudents() {
     addStudent,
     updateStudent,
     deleteStudent,
+    generateShareToken,
     refetch: fetchStudents,
   };
 }

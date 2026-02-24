@@ -65,3 +65,35 @@ CREATE POLICY "bio_img_update" ON storage.objects
 CREATE POLICY "bio_img_delete" ON storage.objects
   FOR DELETE TO authenticated
   USING (bucket_id = 'bioimpedance-images');
+
+-- ════════════════════════════════════════════════════
+-- 4. PORTAL PÚBLICO DE EVOLUÇÃO POR ALUNO
+-- Cole este bloco JUNTO com o anterior no SQL Editor
+-- ════════════════════════════════════════════════════
+
+-- Coluna share_token em students (UUID único por aluno)
+ALTER TABLE students ADD COLUMN IF NOT EXISTS share_token UUID DEFAULT gen_random_uuid();
+CREATE UNIQUE INDEX IF NOT EXISTS students_share_token_idx ON students (share_token) WHERE share_token IS NOT NULL;
+
+-- Garante que todos os alunos existentes tenham token
+UPDATE students SET share_token = gen_random_uuid() WHERE share_token IS NULL;
+
+-- RLS: anon pode ler alunos via share_token
+DROP POLICY IF EXISTS "anon_read_students_by_token" ON students;
+CREATE POLICY "anon_read_students_by_token" ON students
+  FOR SELECT TO anon USING (share_token IS NOT NULL);
+
+-- RLS: anon pode ler evolution_photos
+DROP POLICY IF EXISTS "anon_read_evolution_photos" ON evolution_photos;
+CREATE POLICY "anon_read_evolution_photos" ON evolution_photos
+  FOR SELECT TO anon USING (true);
+
+-- RLS: anon pode ler bioimpedance
+DROP POLICY IF EXISTS "anon_read_bioimpedance" ON bioimpedance;
+CREATE POLICY "anon_read_bioimpedance" ON bioimpedance
+  FOR SELECT TO anon USING (true);
+
+-- RLS: anon pode ler measurements
+DROP POLICY IF EXISTS "anon_read_measurements" ON measurements;
+CREATE POLICY "anon_read_measurements" ON measurements
+  FOR SELECT TO anon USING (true);

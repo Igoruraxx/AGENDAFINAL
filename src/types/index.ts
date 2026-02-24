@@ -9,7 +9,8 @@ export interface Student {
   selectedTimes: string[];
   isConsulting: boolean;
   isActive: boolean;
-  billingDay?: number; // dia de vencimento para planos mensais
+  billingDay?: number;
+  shareToken?: string; // token único para link público de evolução
 }
 
 export type MuscleGroup =

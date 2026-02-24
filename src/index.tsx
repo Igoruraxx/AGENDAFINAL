@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
@@ -6,14 +6,27 @@ import { AuthProvider } from './contexts/AuthContext';
 import * as serviceWorkerRegistration from './serviceWorkerRegistration';
 import reportWebVitals from './reportWebVitals';
 
+// Roteamento simples por pathname
+const path = window.location.pathname;
+const studentPortalMatch = path.match(/^\/s\/([a-f0-9-]{36})$/i);
+const StudentPortal = React.lazy(() => import('./pages/StudentPortal'));
+
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
+
 root.render(
   <React.StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    {studentPortalMatch ? (
+      // Portal público — sem autenticação
+      <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><div className="spinner" style={{ width: 32, height: 32 }} /></div>}>
+        <StudentPortal token={studentPortalMatch[1]} />
+      </Suspense>
+    ) : (
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    )}
   </React.StrictMode>
 );
 
