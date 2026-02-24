@@ -1,0 +1,728 @@
+import React, { useState, useCallback, useMemo } from 'react';
+import { Plus, Search, Phone, Calendar, DollarSign, Check, X, Edit2, Trash2, Users, Crown, Lock, Copy, CalendarDays } from 'lucide-react';
+import { Student } from '../types';
+import { useToast } from '../hooks/useToast';
+import { useFormValidation, commonValidations } from '../hooks/useFormValidation';
+import { usePhoneMask } from '../hooks/usePhoneMask';
+import { usePermissions } from '../hooks/usePermissions';
+import { useStudents } from '../hooks/useStudents';
+import PricingPlans from '../components/PricingPlans';
+import { addDays, startOfWeek, format } from 'date-fns';
+
+const Students: React.FC = () => {
+  const { students, addStudent, updateStudent, deleteStudent, loading: studentsLoading } = useStudents();
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [filterPlan, setFilterPlan] = useState<'all' | 'monthly' | 'session'>('all');
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState<Partial<Student>>({
+    name: '',
+    phone: '',
+    plan: 'monthly',
+    value: 0,
+    weeklyFrequency: 1,
+    selectedDays: [],
+    selectedTimes: [],
+    isConsulting: false,
+    isActive: true,
+    billingDay: 1,
+  });
+
+  const [showWeekPreview, setShowWeekPreview] = useState(false);
+  const { success, error, warning } = useToast();
+  const { validateForm, hasErrors } = useFormValidation();
+  const phoneMask = usePhoneMask(formData.phone || '');
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const { canAddStudent, maxStudents } = usePermissions();
+  const [showPricing, setShowPricing] = useState(false);
+  const activeStudents = students.filter(s => s.isActive);
+  const atLimit = !canAddStudent(activeStudents.length);
+
+  const weekDays = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+  const timeSlots = Array.from({ length: 15 }, (_, i) => `${(i + 6).toString().padStart(2, '0')}:00`);
+  const DAY_MAP: Record<string, number> = {
+    'Domingo': 0, 'Segunda': 1, 'Terça': 2, 'Quarta': 3,
+    'Quinta': 4, 'Sexta': 5, 'Sábado': 6,
+  };
+
+  const filteredStudents = useMemo(() => {
+    return students.filter(student => {
+      const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.phone.includes(searchTerm);
+      const matchesStatus = filterStatus === 'all' ||
+        (filterStatus === 'active' ? student.isActive : !student.isActive);
+      const matchesPlan = filterPlan === 'all' || student.plan === filterPlan;
+      return matchesSearch && matchesStatus && matchesPlan;
+    });
+  }, [students, searchTerm, filterStatus, filterPlan]);
+
+  const activeCount = students.filter(s => s.isActive).length;
+  const monthlyRevenue = students.filter(s => s.isActive && s.plan === 'monthly').reduce((acc, s) => acc + s.value, 0);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validation rules
+    const validationRules = {
+      name: commonValidations.name,
+      phone: commonValidations.phone,
+      value: commonValidations.value,
+      weeklyFrequency: commonValidations.weeklyFrequency,
+    };
+
+    // Validate form
+    const errors = validateForm(
+      {
+        name: formData.name || '',
+        phone: phoneMask.getCleanPhone(),
+        value: String(formData.value || 0),
+        weeklyFrequency: String(formData.weeklyFrequency || 1),
+      },
+      validationRules
+    );
+
+    if (hasErrors(errors)) {
+      setFormErrors(errors);
+      error('Por favor, corrija os erros no formulário');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const studentData = {
+        name: formData.name || '',
+        phone: phoneMask.value,
+        plan: formData.plan as 'monthly' | 'session',
+        value: formData.value || 0,
+        weeklyFrequency: formData.weeklyFrequency || 1,
+        selectedDays: formData.selectedDays || [],
+        selectedTimes: formData.selectedTimes || [],
+        isConsulting: formData.isConsulting || false,
+        isActive: formData.isActive !== false,
+        billingDay: Number(formData.billingDay) || 1,
+      };
+
+      if (editingStudent) {
+        await updateStudent(editingStudent.id, studentData);
+        success('Aluno atualizado com sucesso!');
+      } else {
+        await addStudent(studentData);
+        success('Aluno cadastrado com sucesso!');
+      }
+
+      setShowForm(false);
+      setEditingStudent(null);
+      setFormErrors({});
+      resetForm();
+    } catch (err: any) {
+      error(err.message || 'Erro ao salvar aluno');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      phone: '',
+      plan: 'monthly',
+      value: 0,
+      weeklyFrequency: 1,
+      selectedDays: [],
+      selectedTimes: [],
+      isConsulting: false,
+      isActive: true,
+    });
+    phoneMask.setValue('');
+  };
+
+  const handleEdit = useCallback((student: Student) => {
+    setEditingStudent(student);
+    setFormData(student);
+    phoneMask.setValue(student.phone);
+    setShowForm(true);
+  }, [phoneMask]);
+
+  const handleDelete = useCallback(async (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir este aluno?')) {
+      try {
+        await deleteStudent(id);
+        success('Aluno excluído com sucesso!');
+      } catch (err: any) {
+        error(err.message || 'Erro ao excluir aluno');
+      }
+    }
+  }, [deleteStudent, success, error]);
+
+  const toggleStudentStatus = async (id: string) => {
+    const student = students.find(s => s.id === id);
+    if (!student) return;
+    const newStatus = !student.isActive;
+    try {
+      await updateStudent(id, { isActive: newStatus });
+      warning(newStatus ? 'Aluno ativado com sucesso!' : 'Aluno desativado!');
+    } catch (err: any) {
+      error(err.message || 'Erro ao alterar status');
+    }
+  };
+
+  const handleDaySelection = (day: string) => {
+    const isSelected = formData.selectedDays?.includes(day);
+    if (isSelected) {
+      setFormData(prev => ({
+        ...prev,
+        selectedDays: prev.selectedDays?.filter(d => d !== day) || [],
+        selectedTimes: prev.selectedTimes?.filter((_, i) => 
+          prev.selectedDays?.[i] !== day
+        ) || []
+      }));
+    } else {
+      const atLimit = (formData.selectedDays?.length || 0) >= (formData.weeklyFrequency || 1);
+      if (atLimit) return;
+      setFormData(prev => ({
+        ...prev,
+        selectedDays: [...(prev.selectedDays || []), day],
+        selectedTimes: [...(prev.selectedTimes || []), '08:00']
+      }));
+    }
+  };
+
+  const handleFrequencyChange = (newFreq: number) => {
+    setFormData(prev => {
+      const currentDays = prev.selectedDays || [];
+      const currentTimes = prev.selectedTimes || [];
+      if (newFreq < currentDays.length) {
+        return {
+          ...prev,
+          weeklyFrequency: newFreq,
+          selectedDays: currentDays.slice(0, newFreq),
+          selectedTimes: currentTimes.slice(0, newFreq),
+        };
+      }
+      return { ...prev, weeklyFrequency: newFreq };
+    });
+    setShowWeekPreview(false);
+  };
+
+  const copyTimeToAll = () => {
+    setFormData(prev => {
+      const firstTime = prev.selectedTimes?.[0] || '08:00';
+      const newTimes = (prev.selectedDays || []).map(() => firstTime);
+      return { ...prev, selectedTimes: newTimes };
+    });
+    success('Horário copiado para todos os dias!');
+  };
+
+  const generateWeekPreview = () => {
+    const days = formData.selectedDays || [];
+    const times = formData.selectedTimes || [];
+    const today = new Date();
+    const mondayThisWeek = startOfWeek(today, { weekStartsOn: 1 });
+    const weeks: { dayShort: string; dateStr: string; time: string }[][] = [];
+    for (let w = 0; w < 4; w++) {
+      const weekMonday = addDays(mondayThisWeek, w * 7);
+      const weekItems: { dayShort: string; dateStr: string; time: string }[] = [];
+      days.forEach((day, idx) => {
+        const jsDay = DAY_MAP[day];
+        let offset = jsDay - 1;
+        if (offset < 0) offset = 6;
+        const date = addDays(weekMonday, offset);
+        weekItems.push({
+          dayShort: day.slice(0, 3),
+          dateStr: format(date, 'dd/MM'),
+          time: times[idx] || '08:00',
+        });
+      });
+      weeks.push(weekItems);
+    }
+    return weeks;
+  };
+
+  const handleTimeChange = (dayIndex: number, time: string) => {
+    setFormData(prev => {
+      const newTimes = [...(prev.selectedTimes || [])];
+      newTimes[dayIndex] = time;
+      return { ...prev, selectedTimes: newTimes };
+    });
+  };
+
+  return (
+    <div className="animate-fade-in-up">
+      {/* Header */}
+      <div className="page-header">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-lg font-extrabold tracking-tight" style={{color:'var(--n-900)'}}>Clientes</h1>
+            <p className="text-xs mt-0.5" style={{color:'var(--n-500)'}}>{activeCount} ativos · {students.length} cadastrados</p>
+          </div>
+          <button
+            onClick={() => atLimit ? setShowPricing(true) : setShowForm(true)}
+            className="btn btn-primary text-sm px-3.5 py-2"
+          >
+            {atLimit ? <Lock size={15} /> : <Plus size={15} />}
+            <span>Novo</span>
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: 'Total', value: students.length, color: 'var(--accent)' },
+            { label: 'Ativos', value: activeCount, color: 'var(--success)' },
+            { label: 'Receita', value: `R$${monthlyRevenue}`, color: '#8b5cf6' },
+          ].map((s) => (
+            <div key={s.label} className="rounded-lg p-2.5 text-center" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
+              <div className="text-base font-extrabold" style={{color:s.color}}>{s.value}</div>
+              <div className="text-xs" style={{color:'var(--n-500)'}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="p-4 sm:p-5">
+      {/* Student limit banner */}
+      {atLimit && (
+        <div className="flex items-center justify-between gap-3 rounded-xl px-4 py-3 mb-4" style={{background:'var(--warning-light)',border:'1px solid var(--warning)'}}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Crown size={16} style={{color:'var(--warning)'}} className="flex-shrink-0" />
+            <p className="text-xs font-medium" style={{color:'var(--n-900)'}}>
+              Limite de {maxStudents} clientes atingido no plano gratuito
+            </p>
+          </div>
+          <button
+            onClick={() => setShowPricing(true)}
+            className="btn btn-primary flex-shrink-0 text-xs px-3 py-1.5"
+          >
+            Upgrade
+          </button>
+        </div>
+      )}
+
+      {/* Search + Filters */}
+      <div className="space-y-3 mb-4">
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2" size={16} style={{color:'var(--n-400)'}} />
+          <input
+            type="text"
+            placeholder="Buscar por nome ou telefone..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="input-base pl-10"
+            aria-label="Buscar clientes por nome ou telefone"
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-lg p-0.5 flex-1 min-w-0" style={{background:'var(--n-100)',border:'1px solid var(--n-200)'}}>
+            {(['all', 'active', 'inactive'] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setFilterStatus(s)}
+                className={`flex-1 px-2 py-2 rounded-md text-xs font-semibold transition-all touch-manipulation ${
+                  filterStatus === s ? 'bg-white shadow-sm' : ''
+                }`}
+                style={{color: filterStatus === s ? 'var(--accent)' : 'var(--n-400)'}}
+              >
+                {s === 'all' ? 'Todos' : s === 'active' ? 'Ativos' : 'Inativos'}
+              </button>
+            ))}
+          </div>
+          <select
+            value={filterPlan}
+            onChange={(e) => setFilterPlan(e.target.value as 'all' | 'monthly' | 'session')}
+            className="input-base text-xs flex-shrink-0"
+            style={{width:'auto',minWidth:'120px',padding:'0.5rem 0.75rem'}}
+          >
+            <option value="all">Todos planos</option>
+            <option value="monthly">Mensal</option>
+            <option value="session">Sessão</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Students List */}
+      <div className="space-y-3 sm:space-y-4">
+        {filteredStudents.length === 0 && (
+          <div className="text-center py-12">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{background:'var(--n-100)',border:'1px solid var(--n-200)'}}>
+              <Users size={24} style={{color:'var(--n-400)'}} />
+            </div>
+            <p className="text-sm font-bold" style={{color:'var(--n-900)'}}>Nenhum cliente encontrado</p>
+            <p className="text-xs mt-1" style={{color:'var(--n-400)'}}>Tente ajustar os filtros</p>
+          </div>
+        )}
+        {filteredStudents.map((student) => {
+          const initials = student.name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
+
+          return (
+          <button
+            key={student.id}
+            onClick={() => handleEdit(student)}
+            className={`w-full text-left rounded-xl p-4 transition-all duration-200 active:scale-[0.99] hover:shadow-md cursor-pointer ${
+              student.isActive ? 'opacity-100' : 'opacity-50'
+            }`}
+            style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}
+          >
+            <div className="flex items-start gap-3">
+              {/* Avatar */}
+              <div
+                className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-extrabold"
+                style={{background:'var(--accent-light)', color:'var(--accent)', border:'1.5px solid var(--accent)'}}
+              >
+                {initials}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <h3 className="text-sm font-bold truncate" style={{color:'var(--n-900)'}}>
+                        {student.name}
+                      </h3>
+                      <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold"
+                        style={{color: student.isActive ? 'var(--success)' : 'var(--error)', background: student.isActive ? 'var(--success-light)' : 'var(--error-light)'}}>
+                        {student.isActive ? 'Ativo' : 'Inativo'}
+                      </span>
+                      {student.isConsulting && (
+                        <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold text-purple-400" style={{background:'rgba(167,139,250,0.1)'}}>
+                          Consultoria
+                        </span>
+                      )}
+                      <span className="px-1.5 py-0.5 rounded-full text-xs font-medium"
+                        style={{color: student.plan === 'monthly' ? 'var(--accent)' : 'var(--n-600)', background: student.plan === 'monthly' ? 'var(--accent-light)' : 'var(--n-100)'}}>
+                        {student.plan === 'monthly' ? 'Mensal' : 'Sessão'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <span 
+                      onClick={(e) => { e.stopPropagation(); handleDelete(student.id); }} 
+                      className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all touch-manipulation" 
+                      title="Excluir"
+                      role="button"
+                      aria-label={`Excluir aluno ${student.name}`}
+                    >
+                      <Trash2 size={14} />
+                    </span>
+                    <span 
+                      onClick={(e) => { e.stopPropagation(); toggleStudentStatus(student.id); }} 
+                      className={`p-1.5 rounded-lg transition-all touch-manipulation ${student.isActive ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-red-400 hover:bg-red-500/10'}`} 
+                      title={student.isActive ? 'Desativar' : 'Ativar'}
+                      role="button"
+                      aria-label={`${student.isActive ? 'Desativar' : 'Ativar'} aluno ${student.name}`}
+                    >
+                      {student.isActive ? <Check size={14} /> : <X size={14} />}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs mt-2">
+                  <div className="flex items-center gap-1" style={{color:'var(--n-500)'}}>
+                    <Phone size={11} style={{color:'var(--accent)'}} className="flex-shrink-0" />
+                    <span className="truncate">{student.phone}</span>
+                  </div>
+                  <div className="flex items-center gap-1" style={{color:'var(--n-500)'}}>
+                    <DollarSign size={11} style={{color:'var(--success)'}} className="flex-shrink-0" />
+                    <span className="font-semibold" style={{color:'var(--n-900)'}}>R$ {student.value}</span>
+                  </div>
+                  <div className="flex items-center gap-1" style={{color:'var(--n-500)'}}>
+                    <Calendar size={11} style={{color:'#8b5cf6'}} className="flex-shrink-0" />
+                    <span>{student.weeklyFrequency}x/sem</span>
+                  </div>
+                  <div className="truncate text-xs" style={{color:'var(--n-400)'}}>
+                    {student.selectedDays.join(', ') || '—'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </button>
+          );
+        })}
+      </div>
+
+      {/* Form Modal */}
+      {showForm && (
+        <div className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
+          <div className="w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl" style={{background:'var(--n-0)',border:'1px solid var(--n-200)',boxShadow:'var(--sh-lg)'}}>
+            {/* Modal Header */}
+            <div className="sticky top-0 px-5 pt-5 pb-4 z-10 rounded-t-2xl sm:rounded-t-2xl" style={{background:'var(--n-0)',borderBottom:'1px solid var(--n-200)'}}>
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-extrabold" style={{color:'var(--n-900)'}}>
+                  {editingStudent ? 'Editar Cliente' : 'Novo Cliente'}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => { setShowForm(false); setEditingStudent(null); }}
+                  className="p-2 hover:bg-black/5 rounded-lg transition-colors touch-manipulation"
+                >
+                  <X size={20} style={{color:'var(--n-400)'}} />
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="px-5 sm:px-6 py-5 space-y-4">
+              {/* Nome + Telefone */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-600)'}}>Nome completo</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Nome completo"
+                    className="input-base"
+                  />
+                  {formErrors.name && (
+                    <p className="text-xs text-red-400 mt-1">{formErrors.name}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-600)'}}>Telefone</label>
+                  <input
+                    type="tel"
+                    required
+                    value={phoneMask.value}
+                    onChange={(e) => {
+                      phoneMask.setValue(e.target.value);
+                      setFormData(prev => ({ ...prev, phone: e.target.value }));
+                    }}
+                    placeholder="(11) 99999-9999"
+                    className="input-base"
+                  />
+                  {formErrors.phone && (
+                    <p className="text-xs text-red-400 mt-1">{formErrors.phone}</p>
+                  )}
+                </div>
+                {formData.plan === 'monthly' && (
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-600)'}}>Dia vencimento</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="28"
+                      value={formData.billingDay ?? 1}
+                      onChange={(e) => setFormData(prev => ({ ...prev, billingDay: Number(e.target.value) }))}
+                      className="input-base"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Plano + Valor + Frequência + Vencimento */}
+              <div className={`grid gap-3 ${formData.plan === 'monthly' ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'}`}>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-600)'}}>Plano</label>
+                  <select
+                    value={formData.plan}
+                    onChange={(e) => setFormData(prev => ({ ...prev, plan: e.target.value as 'monthly' | 'session' }))}
+                    className="input-base"
+                  >
+                    <option value="monthly">Mensal</option>
+                    <option value="session">Sessão</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-600)'}}>Valor (R$)</label>
+                  <input
+                    type="number"
+                    required
+                    value={formData.value}
+                    onChange={(e) => setFormData(prev => ({ ...prev, value: Number(e.target.value) }))}
+                    className="input-base"
+                  />
+                  {formErrors.value && (
+                    <p className="text-xs text-red-400 mt-1">{formErrors.value}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-600)'}}>Freq./sem</label>
+                  <select
+                    required
+                    value={formData.weeklyFrequency}
+                    onChange={(e) => handleFrequencyChange(Number(e.target.value))}
+                    className="input-base"
+                  >
+                    {[1, 2, 3, 4, 5, 6].map(n => (
+                      <option key={n} value={n}>{n}x por semana</option>
+                    ))}
+                  </select>
+                  {formErrors.weeklyFrequency && (
+                    <p className="text-xs text-red-400 mt-1">{formErrors.weeklyFrequency}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Checkboxes */}
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isConsulting}
+                    onChange={(e) => setFormData(prev => ({ ...prev, isConsulting: e.target.checked }))}
+                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
+                  />
+                  <span className="text-sm" style={{color:'var(--n-700)'}}>Consultoria</span>
+                </label>
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isActive}
+                    onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
+                    className="w-4 h-4 rounded accent-blue-500"
+                  />
+                  <span className="text-sm" style={{color:'var(--n-700)'}}>Cliente ativo</span>
+                </label>
+              </div>
+
+              {/* Dias e horários */}
+              {!formData.isConsulting && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-semibold uppercase tracking-wider" style={{color:'var(--n-600)'}}>
+                      Dias e horários
+                    </label>
+                    {(formData.selectedDays?.length || 0) > 0 && (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{background:'var(--accent-light)',color:'var(--accent)'}}>
+                        {formData.selectedDays?.length} de {formData.weeklyFrequency} {formData.weeklyFrequency === 1 ? 'dia' : 'dias'}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Day chips */}
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {weekDays.map((day) => {
+                      const isSelected = formData.selectedDays?.includes(day) || false;
+                      const atDayLimit = (formData.selectedDays?.length || 0) >= (formData.weeklyFrequency || 1);
+                      const isDisabled = !isSelected && atDayLimit;
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          disabled={isDisabled}
+                          onClick={() => handleDaySelection(day)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 touch-manipulation ${
+                            isDisabled ? 'opacity-40 cursor-not-allowed' : 'hover:scale-105'
+                          }`}
+                          style={isSelected
+                            ? {background:'var(--accent)',color:'#fff',border:'1.5px solid var(--accent)'}
+                            : {background:'var(--n-100)',color:'var(--n-600)',border:'1.5px solid var(--n-200)'}
+                          }
+                        >
+                          {day.slice(0, 3)}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Time slots for selected days */}
+                  {(formData.selectedDays?.length || 0) > 0 && (
+                    <div className="space-y-2">
+                      {formData.selectedDays?.map((day, idx) => (
+                        <div key={day} className="flex items-center gap-3 p-2.5 rounded-lg" style={{background:'var(--n-50)',border:'1px solid var(--n-200)'}}>
+                          <span className="text-sm font-semibold min-w-[80px]" style={{color:'var(--n-700)'}}>{day}</span>
+                          <select
+                            value={formData.selectedTimes?.[idx] || '08:00'}
+                            onChange={(e) => handleTimeChange(idx, e.target.value)}
+                            className="input-base px-3 py-1.5 text-sm flex-1"
+                          >
+                            {timeSlots.map(time => (
+                              <option key={time} value={time}>{time}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+
+                      {/* Copy time to all */}
+                      {(formData.selectedDays?.length || 0) > 1 && (
+                        <button
+                          type="button"
+                          onClick={copyTimeToAll}
+                          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-all duration-150 touch-manipulation w-full justify-center hover:scale-[1.01]"
+                          style={{background:'var(--accent-light)',color:'var(--accent)',border:'1.5px solid var(--accent)'}}
+                        >
+                          <Copy size={12} />
+                          Copiar horário de {formData.selectedDays?.[0]?.slice(0, 3)} para todos
+                        </button>
+                      )}
+
+                      {/* Repeat 4 weeks preview */}
+                      <button
+                        type="button"
+                        onClick={() => setShowWeekPreview(prev => !prev)}
+                        className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-all duration-150 touch-manipulation w-full justify-center mt-1 hover:scale-[1.01]"
+                        style={{background:'var(--n-100)',color:'var(--n-700)',border:'1px solid var(--n-200)'}}
+                      >
+                        <CalendarDays size={12} />
+                        {showWeekPreview ? 'Ocultar preview' : 'Repetir por 4 semanas — ver datas'}
+                      </button>
+
+                      {showWeekPreview && (
+                        <div className="rounded-xl p-3 space-y-3 animate-fade-in-up" style={{background:'var(--n-50)',border:'1px solid var(--n-200)'}}>
+                          <p className="text-xs font-bold" style={{color:'var(--n-700)'}}>
+                            Preview das próximas 4 semanas
+                          </p>
+                          {generateWeekPreview().map((week, wIdx) => (
+                            <div key={wIdx}>
+                              <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{color:'var(--accent)'}}>
+                                Semana {wIdx + 1}
+                              </p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {week.map((item, dIdx) => (
+                                  <span
+                                    key={dIdx}
+                                    className="text-[11px] px-2 py-1 rounded-md font-medium"
+                                    style={{background:'var(--n-0)',border:'1px solid var(--n-200)',color:'var(--n-700)'}}
+                                  >
+                                    {item.dayShort} {item.dateStr} · {item.time}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                          <p className="text-[10px] mt-1" style={{color:'var(--n-400)'}}>
+                            Os horários se repetem automaticamente toda semana na agenda.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex gap-3 pt-2 pb-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowForm(false); setEditingStudent(null); }}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all touch-manipulation"
+                  style={{border:'1px solid var(--n-200)',color:'var(--n-600)'}}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="btn btn-primary flex-1 py-2.5 text-sm font-bold disabled:opacity-50"
+                >
+                  {saving ? 'Salvando...' : editingStudent ? 'Salvar' : 'Cadastrar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      </div>
+
+      {showPricing && (
+        <PricingPlans
+          onClose={() => setShowPricing(false)}
+          highlightFeature="students"
+        />
+      )}
+    </div>
+  );
+};
+
+export default Students;
