@@ -1,6 +1,22 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Users, Shield, Crown
+  Users,
+  Shield,
+  Crown,
+  ArrowUpCircle,
+  ArrowLeft,
+  CreditCard,
+  Gift,
+  History,
+  Calendar,
+  Clock,
+  Search,
+  ChevronRight,
+  Check,
+  AlertTriangle,
+  X,
+  Plus,
+  Minus,
 } from 'lucide-react';
 import { AdminUser, PlanHistoryEntry, UserPlan, PlanOrigin } from '../types';
 
