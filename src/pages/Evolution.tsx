@@ -582,7 +582,7 @@ const EvolutionContent: React.FC = () => {
                           <>
                             <Camera size={20} style={{color:'var(--n-400)'}} />
                             <span className="text-[10px] font-medium" style={{color:'var(--n-400)'}}>
-                              {photoDate ? 'Toque para enviar' : 'Data primeiro'}
+                              {photoDate ? 'Toque para selecionar foto' : 'Data primeiro'}
                             </span>
                           </>
                         )}
@@ -591,7 +591,7 @@ const EvolutionContent: React.FC = () => {
                       <input
                         ref={ref}
                         type="file"
-                        accept="image/jpeg,image/jpg,image/png,image/webp,image/heic"
+                        accept="image/*"
                         className="hidden"
                         onChange={e => upload.setFile(e.target.files?.[0])}
                       />
@@ -642,13 +642,13 @@ const EvolutionContent: React.FC = () => {
                       className="input-base w-full mt-1 truncate text-left text-xs flex items-center gap-2"
                     >
                       <Upload size={13} style={{color:'var(--n-400)'}} />
-                      <span className="truncate">{bioUpload.file ? bioUpload.file.name : 'Selecionar imagem...'}</span>
+                      <span className="truncate">{bioUpload.file ? bioUpload.file.name : 'Selecionar da galeria...'}</span>
                     </button>
                     <input
                       ref={bioFileRef}
                       type="file"
                       className="hidden"
-                      accept="image/jpeg,image/jpg,image/png,image/webp,image/heic"
+                      accept="image/*"
                       onChange={e => bioUpload.setFile(e.target.files?.[0])}
                     />
                   </div>
