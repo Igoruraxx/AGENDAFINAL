@@ -52,6 +52,9 @@ self.addEventListener('fetch', (event) => {
   // Skip chrome-extension and other non-http requests
   if (!request.url.startsWith('http')) return;
 
+  // Skip Supabase API requests - ALWAYS network only
+  if (request.url.includes('supabase.co')) return;
+
   // Navigation requests — Network First (show latest content)
   if (request.mode === 'navigate') {
     event.respondWith(

@@ -116,7 +116,12 @@ function App() {
       <main
         ref={mainRef}
         className="relative z-10 max-w-lg mx-auto overflow-y-auto"
-        style={{ height: '100dvh', scrollBehavior: 'smooth', paddingTop: '60px', paddingBottom: '80px' }}
+        style={{ 
+          height: '100dvh', 
+          scrollBehavior: 'smooth', 
+          paddingTop: 'calc(60px + env(safe-area-inset-top, 0px))', 
+          paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' 
+        }}
       >
         <Suspense fallback={<PageLoader />}>
           <div key={animKey} className="animate-fade-in-up min-h-full">

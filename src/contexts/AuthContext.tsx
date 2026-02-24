@@ -92,16 +92,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let resolved = false;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, s) => {
+      async (event, s) => {
+        console.log('[Auth] State Change:', event, s?.user?.id);
         setSession(s);
+        
         if (s?.user) {
           const profile = await fetchProfile(s.user.id);
-          if (mountedRef.current && profile) setCurrentUser(profileToUser(profile));
-          // Garante que os buckets de storage existem (silencioso)
+          if (mountedRef.current) {
+            if (profile) {
+              setCurrentUser(profileToUser(profile));
+            } else {
+              // Se não achou perfil, tenta mais uma vez após 1s (fallback para delays de trigger)
+              setTimeout(async () => {
+                const retryProfile = await fetchProfile(s.user.id);
+                if (mountedRef.current && retryProfile) {
+                  setCurrentUser(profileToUser(retryProfile));
+                }
+              }, 1000);
+            }
+          }
+          // Garante que os buckets de storage existem
           ensureStorageBuckets();
         } else {
           setCurrentUser(EMPTY_USER);
         }
+        
         // Finaliza o loading apenas na primeira vez que o estado é conhecido
         if (!resolved) {
           resolved = true;
@@ -124,12 +139,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []); // sem dependências — roda só na montagem
 
-  // Efeito 2: quando a sessão muda, busca o perfil do usuário
-  useEffect(() => {
-    if (session?.user) {
-      fetchProfile(session.user.id);
-    }
-  }, [session, fetchProfile]);
 
   const login = useCallback(async (email: string, password: string) => {
     if (!email || !password) throw new Error('Email e senha são obrigatórios');

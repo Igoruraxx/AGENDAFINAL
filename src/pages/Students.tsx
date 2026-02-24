@@ -19,6 +19,7 @@ const Students: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [filterPlan, setFilterPlan] = useState<'all' | 'monthly' | 'session'>('all');
   const [saving, setSaving] = useState(false);
+  const [modalTab, setModalTab] = useState<'data' | 'access'>('data');
   const [formData, setFormData] = useState<Partial<Student>>({
     name: '',
     phone: '',
@@ -139,6 +140,7 @@ const Students: React.FC = () => {
       isActive: true,
       billingDay: 1,
     });
+    setModalTab('data');
     phoneMask.setValue('');
   };
 
@@ -469,9 +471,8 @@ const Students: React.FC = () => {
       {showForm && (
         <div className="fixed inset-0 flex items-center justify-center p-4 z-[100]" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
           <div className="w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl" style={{background:'var(--n-0)',border:'1px solid var(--n-200)',boxShadow:'var(--sh-lg)'}}>
-            {/* Modal Header */}
-            <div className="sticky top-0 px-5 pt-5 pb-4 z-10 rounded-t-2xl sm:rounded-t-2xl" style={{background:'var(--n-0)',borderBottom:'1px solid var(--n-200)'}}>
-              <div className="flex justify-between items-center">
+            <div className="sticky top-0 px-5 pt-5 z-10 rounded-t-2xl sm:rounded-t-2xl" style={{background:'var(--n-0)'}}>
+              <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-extrabold" style={{color:'var(--n-900)'}}>
                   {editingStudent ? 'Editar Cliente' : 'Novo Cliente'}
                 </h2>
@@ -483,9 +484,34 @@ const Students: React.FC = () => {
                   <X size={20} style={{color:'var(--n-400)'}} />
                 </button>
               </div>
+
+              {/* Tabs */}
+              <div className="flex gap-4 border-b" style={{borderColor:'var(--n-200)'}}>
+                <button
+                  type="button"
+                  onClick={() => setModalTab('data')}
+                  className={`pb-3 text-xs font-bold transition-all relative ${modalTab === 'data' ? '' : 'opacity-40'}`}
+                  style={{color: modalTab === 'data' ? 'var(--accent)' : 'var(--n-500)'}}
+                >
+                  Dados do Cliente
+                  {modalTab === 'data' && <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{background:'var(--accent)'}} />}
+                </button>
+                {editingStudent && (
+                  <button
+                    type="button"
+                    onClick={() => setModalTab('access')}
+                    className={`pb-3 text-xs font-bold transition-all relative ${modalTab === 'access' ? '' : 'opacity-40'}`}
+                    style={{color: modalTab === 'access' ? 'var(--accent)' : 'var(--n-500)'}}
+                  >
+                    Link de Acesso
+                    {modalTab === 'access' && <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{background:'var(--accent)'}} />}
+                  </button>
+                )}
+              </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="px-5 sm:px-6 py-5 space-y-4">
+            {modalTab === 'data' ? (
+              <form onSubmit={handleSubmit} className="px-5 sm:px-6 py-5 space-y-4">
               {/* Nome + Telefone */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -716,24 +742,102 @@ const Students: React.FC = () => {
               )}
 
               {/* Action buttons */}
-              <div className="flex gap-3 pt-2 pb-2">
+                <div className="flex gap-3 pt-2 pb-2">
+                  <button
+                    type="button"
+                    onClick={() => { setShowForm(false); setEditingStudent(null); }}
+                    className="flex-1 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all touch-manipulation"
+                    style={{border:'1px solid var(--n-200)',color:'var(--n-600)'}}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="btn btn-primary flex-1 py-2.5 text-sm font-bold disabled:opacity-50"
+                  >
+                    {saving ? 'Salvando...' : editingStudent ? 'Salvar' : 'Cadastrar'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="px-5 sm:px-6 py-8 space-y-6 animate-fade-in">
+                <div className="text-center space-y-2">
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{background:'var(--accent-light)'}}>
+                    <Share2 size={28} style={{color:'var(--accent)'}} />
+                  </div>
+                  <h3 className="text-base font-bold" style={{color:'var(--n-900)'}}>Portal de Evolução</h3>
+                  <p className="text-xs max-w-[240px] mx-auto" style={{color:'var(--n-500)'}}>
+                    Envie o link abaixo para o aluno acompanhar as fotos, medidas e bioimpedância.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Link Completo */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider pl-1" style={{color:'var(--n-500)'}}>Link do Aluno</label>
+                    <div className="flex items-center gap-2 p-3 rounded-xl" style={{background:'var(--n-50)', border:'1px solid var(--n-200)'}}>
+                      <div className="flex-1 truncate text-xs font-medium" style={{color:'var(--n-700)'}}>
+                        {window.location.origin}/s/{editingStudent?.shareToken || 'Gerando...'}
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (!editingStudent) return;
+                          const token = await generateShareToken(editingStudent.id);
+                          const link = `${window.location.origin}/s/${token}`;
+                          await navigator.clipboard.writeText(link);
+                          success('Link copiado para a área de transferência!');
+                        }}
+                        className="p-2 rounded-lg hover:bg-white transition-all shadow-sm"
+                        style={{background:'var(--n-0)', border:'1px solid var(--n-200)', color:'var(--accent)'}}
+                      >
+                        <Copy size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Código de Acesso */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider pl-1" style={{color:'var(--n-500)'}}>Código de Acesso</label>
+                    <div className="flex items-center gap-2 p-3 rounded-xl" style={{background:'var(--n-50)', border:'1px solid var(--n-200)'}}>
+                      <div className="flex-1 truncate text-xs font-mono font-bold" style={{color:'var(--n-900)'}}>
+                        {editingStudent?.shareToken || 'Gerando...'}
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (!editingStudent) return;
+                          const token = await generateShareToken(editingStudent.id);
+                          await navigator.clipboard.writeText(token);
+                          success('Código copiado!');
+                        }}
+                        className="p-2 rounded-lg hover:bg-white transition-all shadow-sm"
+                        style={{background:'var(--n-0)', border:'1px solid var(--n-200)', color:'var(--n-500)'}}
+                      >
+                        <Copy size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl space-y-2" style={{background:'var(--accent-light)', border:'1.5px dashed var(--accent)'}}>
+                  <div className="flex items-start gap-2">
+                    <Check size={14} style={{color:'var(--accent)', marginTop:'2px'}} className="flex-shrink-0" />
+                    <p className="text-[11px] leading-relaxed" style={{color:'var(--n-700)'}}>
+                      Este link é <strong>público</strong> para quem tiver o código. O aluno não precisa de senha para acessar o portal dele.
+                    </p>
+                  </div>
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => { setShowForm(false); setEditingStudent(null); }}
-                  className="flex-1 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all touch-manipulation"
-                  style={{border:'1px solid var(--n-200)',color:'var(--n-600)'}}
+                  onClick={() => setModalTab('data')}
+                  className="w-full py-3 text-xs font-bold rounded-xl transition-all touch-manipulation"
+                  style={{border:'1.5px solid var(--n-200)', color:'var(--n-600)'}}
                 >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="btn btn-primary flex-1 py-2.5 text-sm font-bold disabled:opacity-50"
-                >
-                  {saving ? 'Salvando...' : editingStudent ? 'Salvar' : 'Cadastrar'}
+                  Voltar para Dados
                 </button>
               </div>
-            </form>
+            )}
           </div>
         </div>
       )}
