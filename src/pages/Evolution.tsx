@@ -9,7 +9,7 @@ import { useEvolution } from '../hooks/useEvolution';
 
 const EvolutionContent: React.FC = () => {
   const { students: STUDENTS_LIST } = useStudents();
-  const { photos: evoPhotos, bioimpedance: evoBio, measurements: evoMeasurements, addPhoto: addEvoPhoto, addBioimpedance, addMeasurement } = useEvolution();
+  const { photos: evoPhotos, bioimpedance: evoBio, measurements: evoMeasurements, addPhoto: addEvoPhoto, addBioimpedance, addMeasurement, deletePhoto, deleteBioimpedance, deleteMeasurement } = useEvolution();
   const [activeTab, setActiveTab] = useState<'photos' | 'bioimpedance' | 'measurements'>('photos');
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
@@ -229,13 +229,18 @@ const EvolutionContent: React.FC = () => {
             )}
             <div className="space-y-4">
               {filteredPhotos.map((ps, idx) => (
-                <div key={ps.id} className="rounded-xl p-4" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{background:'var(--accent)',color:'var(--n-0)'}}><Camera size={13} /></div>
-                    <div>
-                      <div className="text-sm font-bold" style={{color:'var(--n-900)'}}>{ps.date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
-                      {idx === 0 && <span className="text-xs font-semibold" style={{color:'var(--accent)'}}>Mais recente</span>}
+                <div key={ps.id} className="rounded-xl p-4 relative" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{background:'var(--accent)',color:'var(--n-0)'}}><Camera size={13} /></div>
+                      <div>
+                        <div className="text-sm font-bold" style={{color:'var(--n-900)'}}>{ps.date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+                        {idx === 0 && <span className="text-xs font-semibold" style={{color:'var(--accent)'}}>Mais recente</span>}
+                      </div>
                     </div>
+                    <button onClick={() => { if(window.confirm('Excluir este comparativo de fotos?')) deletePhoto(ps.id); }} className="w-8 h-8 flex flex-col items-center justify-center rounded-lg hover:bg-red-50 text-red-400 hover:text-red-500 transition-colors">
+                      <X size={15} />
+                    </button>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     {[{ label: 'Frente', src: ps.front }, { label: 'Lado', src: ps.side }, { label: 'Costas', src: ps.back }].map(({ label, src }) => (
@@ -286,15 +291,20 @@ const EvolutionContent: React.FC = () => {
                           {idx === 0 && <span className="text-xs font-medium" style={{color:'var(--accent)'}}>Mais recente</span>}
                         </div>
                       </div>
-                      {bio.image ? (
-                        <button onClick={() => setBioImageViewer(bio.image)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors touch-manipulation" style={{background:'var(--accent-light)',color:'var(--accent)'}}>
-                          <Camera size={13} />Ver imagem
+                      <div className="flex items-center gap-4">
+                        {bio.image ? (
+                          <button onClick={() => setBioImageViewer(bio.image)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors touch-manipulation" style={{background:'var(--accent-light)',color:'var(--accent)'}}>
+                            <Camera size={13} />Ver imagem
+                          </button>
+                        ) : (
+                          <button onClick={() => setShowBioModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors touch-manipulation" style={{background:'var(--n-100)',color:'var(--n-500)',border:'1px dashed var(--n-300)'}}>
+                            <Camera size={13} />Anexar imagem
+                          </button>
+                        )}
+                        <button onClick={() => { if(window.confirm('Excluir esta bioimpedância?')) deleteBioimpedance(bio.id); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-red-400 hover:text-red-500 transition-colors">
+                          <X size={15} />
                         </button>
-                      ) : (
-                        <button onClick={() => setShowBioModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors touch-manipulation" style={{background:'var(--n-100)',color:'var(--n-500)',border:'1px dashed var(--n-300)'}}>
-                          <Camera size={13} />Anexar imagem
-                        </button>
-                      )}
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {metrics.map((m) => {
@@ -395,6 +405,9 @@ const EvolutionContent: React.FC = () => {
                             {idx === 0 && <span className="text-xs font-medium" style={{color:'var(--success)'}}>Mais recente</span>}
                           </div>
                         </div>
+                        <button onClick={() => { if(window.confirm('Excluir estas medidas?')) deleteMeasurement(m.id); }} className="w-8 h-8 flex flex-col items-center justify-center rounded-lg hover:bg-red-50 text-red-400 hover:text-red-500 transition-colors">
+                          <X size={15} />
+                        </button>
                       </div>
                       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                         {[

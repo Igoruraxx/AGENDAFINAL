@@ -234,6 +234,27 @@ export function useEvolution(studentId?: string) {
     await fetchAll();
   }, [currentUser.id, fetchAll]);
 
+  const deletePhoto = useCallback(async (id: string) => {
+    if (!currentUser.id) return;
+    const { error } = await supabase.from('evolution_photos').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+    await fetchAll();
+  }, [currentUser.id, fetchAll]);
+
+  const deleteBioimpedance = useCallback(async (id: string) => {
+    if (!currentUser.id) return;
+    const { error } = await supabase.from('bioimpedance').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+    await fetchAll();
+  }, [currentUser.id, fetchAll]);
+
+  const deleteMeasurement = useCallback(async (id: string) => {
+    if (!currentUser.id) return;
+    const { error } = await supabase.from('measurements').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+    await fetchAll();
+  }, [currentUser.id, fetchAll]);
+
   return {
     photos,
     bioimpedance,
@@ -243,6 +264,9 @@ export function useEvolution(studentId?: string) {
     addPhoto,
     addBioimpedance,
     addMeasurement,
+    deletePhoto,
+    deleteBioimpedance,
+    deleteMeasurement,
     refetch: fetchAll,
   };
 }

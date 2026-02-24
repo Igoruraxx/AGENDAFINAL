@@ -105,8 +105,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (s?.user) {
           const profile = await fetchProfile(s.user.id);
           if (profile) setCurrentUser(profileToUser(profile));
+          setLoading(false);
         } else {
           setCurrentUser(EMPTY_USER);
+          setLoading(false);
         }
       }
     );
