@@ -105,21 +105,30 @@ export function useEvolution(studentId?: string) {
     fetchAll();
   }, [fetchAll]);
 
-  // Upload photo to Supabase Storage
-  const uploadPhoto = useCallback(async (file: File, path: string): Promise<string> => {
+  // Upload photo to Supabase Storage, retorna URL pública
+  const uploadPhoto = useCallback(async (file: File, pathWithoutExt: string): Promise<string> => {
+    // Detectar extensão real do arquivo
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const fullPath = `${currentUser.id}/${pathWithoutExt}.${ext}`;
+
     const { data, error: err } = await supabase.storage
       .from('evolution-photos')
-      .upload(`${currentUser.id}/${path}`, file, {
+      .upload(fullPath, file, {
         cacheControl: '3600',
         upsert: true,
+        contentType: file.type,
       });
 
-    if (err) throw new Error(err.message);
+    if (err) {
+      console.error('[useEvolution] Erro no upload de foto:', err.message);
+      throw new Error(err.message);
+    }
 
     const { data: urlData } = supabase.storage
       .from('evolution-photos')
       .getPublicUrl(data.path);
 
+    console.log('[useEvolution] URL pública gerada:', urlData.publicUrl);
     return urlData.publicUrl;
   }, [currentUser.id]);
 
@@ -133,11 +142,23 @@ export function useEvolution(studentId?: string) {
     if (!currentUser.id) return;
 
     const timestamp = Date.now();
+
+    // Uploads independentes — um falhar não bloqueia os outros
     const [frontUrl, sideUrl, backUrl] = await Promise.all([
-      photo.frontFile ? uploadPhoto(photo.frontFile, `${photo.studentId}/${timestamp}-front.jpg`) : Promise.resolve(null),
-      photo.sideFile ? uploadPhoto(photo.sideFile, `${photo.studentId}/${timestamp}-side.jpg`) : Promise.resolve(null),
-      photo.backFile ? uploadPhoto(photo.backFile, `${photo.studentId}/${timestamp}-back.jpg`) : Promise.resolve(null),
+      photo.frontFile
+        ? uploadPhoto(photo.frontFile, `${photo.studentId}/${timestamp}-front`).catch(e => { console.error('Front upload failed:', e); return null; })
+        : Promise.resolve(null),
+      photo.sideFile
+        ? uploadPhoto(photo.sideFile, `${photo.studentId}/${timestamp}-side`).catch(e => { console.error('Side upload failed:', e); return null; })
+        : Promise.resolve(null),
+      photo.backFile
+        ? uploadPhoto(photo.backFile, `${photo.studentId}/${timestamp}-back`).catch(e => { console.error('Back upload failed:', e); return null; })
+        : Promise.resolve(null),
     ]);
+
+    if (!frontUrl && !sideUrl && !backUrl) {
+      throw new Error('Nenhuma foto foi enviada com sucesso. Verifique o bucket de storage do Supabase.');
+    }
 
     const { error: err } = await supabase
       .from('evolution_photos')

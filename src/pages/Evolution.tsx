@@ -257,7 +257,18 @@ const EvolutionContent: React.FC = () => {
                     {[{ label: 'Frente', src: ps.front }, { label: 'Lado', src: ps.side }, { label: 'Costas', src: ps.back }].map(({ label, src }) => (
                       <div key={label}>
                         <div className="text-xs font-semibold mb-1.5 text-center" style={{color:'var(--n-500)'}}>{label}</div>
-                        {src ? (<img src={src} alt={label} className="aspect-[3/4] w-full object-cover rounded-lg" />) : (
+                        {src ? (
+                          <img
+                            src={src}
+                            alt={label}
+                            className="aspect-[3/4] w-full object-cover rounded-lg"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                              (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
+                        {(!src) && (
                           <div className="aspect-[3/4] rounded-lg flex items-center justify-center" style={{background:'var(--n-100)',border:'1px dashed var(--n-300)'}}><Camera size={20} style={{color:'var(--n-300)'}} /></div>
                         )}
                       </div>
