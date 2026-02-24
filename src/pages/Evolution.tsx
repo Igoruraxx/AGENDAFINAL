@@ -15,7 +15,6 @@ const EvolutionContent: React.FC = () => {
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [photoDate, setPhotoDate] = useState('');
-  const [photoFiles, setPhotoFiles] = useState<{ front: string; side: string; back: string }>({ front: '', side: '', back: '' });
   const [bioImageViewer, setBioImageViewer] = useState<string | null>(null);
 
   const frontRef = useRef<HTMLInputElement>(null);
@@ -26,6 +25,10 @@ const EvolutionContent: React.FC = () => {
   const [showBioModal, setShowBioModal] = useState(false);
   const [showMeasModal, setShowMeasModal] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Fotos: Files reais para upload + URLs para preview no modal
+  const [photoFileObjects, setPhotoFileObjects] = useState<{ front: File|null; side: File|null; back: File|null }>({ front: null, side: null, back: null });
+  const [photoFiles, setPhotoFiles] = useState<{ front: string; side: string; back: string }>({ front: '', side: '', back: '' });
 
   const [bioDate, setBioDate] = useState(new Date().toISOString().split('T')[0]);
   const [bioFile, setBioFile] = useState<File | null>(null);
@@ -84,34 +87,42 @@ const EvolutionContent: React.FC = () => {
       alert('Por favor, selecione apenas arquivos de imagem (JPG, PNG, WEBP).');
       return;
     }
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
       alert('O arquivo deve ter no máximo 5MB.');
       return;
     }
+    // Guarda o File real para upload e uma URL de preview para exibir no modal
+    setPhotoFileObjects(prev => ({ ...prev, [slot]: file }));
     setPhotoFiles(prev => ({ ...prev, [slot]: URL.createObjectURL(file) }));
   };
 
   const handleAddPhoto = async () => {
     if (!photoDate || !selectedStudentId) return;
+    setSaving(true);
     try {
       await addEvoPhoto({
         studentId: selectedStudentId,
         date: photoDate,
+        frontFile: photoFileObjects.front || undefined,
+        sideFile: photoFileObjects.side || undefined,
+        backFile: photoFileObjects.back || undefined,
       });
       setShowPhotoModal(false);
       setPhotoDate('');
       setPhotoFiles({ front: '', side: '', back: '' });
+      setPhotoFileObjects({ front: null, side: null, back: null });
     } catch (error) {
       console.error('Erro ao salvar fotos:', error);
       alert('Erro ao salvar fotos. Tente novamente.');
-    }
+    } finally { setSaving(false); }
   };
 
   const closePhotoModal = () => { 
     setShowPhotoModal(false); 
     setPhotoDate(''); 
     setPhotoFiles({ front: '', side: '', back: '' }); 
+    setPhotoFileObjects({ front: null, side: null, back: null });
   };
 
   const handleAddBio = async () => {
