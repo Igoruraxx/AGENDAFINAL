@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
 
-const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/*'];
 const MAX_SIZE_MB = 20; // antes de comprimir
 const MAX_DIMENSION = 1920; // px — dimensão máxima (largura ou altura)
 const JPEG_QUALITY = 0.82; // 0-1

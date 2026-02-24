@@ -626,8 +626,8 @@ const EvolutionContent: React.FC = () => {
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
             <div className="rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" style={{background:'var(--n-0)',border:'1px solid var(--n-200)',boxShadow:'var(--sh-lg)'}}>
               <div className="flex items-center justify-between p-5 sticky top-0 bg-white z-10" style={{borderBottom:'1px solid var(--n-200)'}}>
-                <h3 className="text-base font-bold" style={{color:'var(--n-900)'}}>Nova Bioimpedância</h3>
-                <button onClick={() => setShowBioModal(false)} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style={{background:'var(--n-100)'}}><X size={16} style={{color:'var(--n-500)'}} /></button>
+                <h3 className="text-base font-bold" style={{color:'var(--n-900)'}}>{editingBioId ? 'Editar Bioimpedância' : 'Nova Bioimpedância'}</h3>
+                <button onClick={closeBioModal} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style={{background:'var(--n-100)'}}><X size={16} style={{color:'var(--n-500)'}} /></button>
               </div>
               <div className="p-5 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
@@ -687,7 +687,7 @@ const EvolutionContent: React.FC = () => {
                 </div>
               </div>
               <div className="flex gap-3 p-5 pt-0">
-                <button onClick={() => setShowBioModal(false)} className="flex-1 py-2.5 rounded-lg text-sm font-medium" style={{border:'1px solid var(--n-200)',color:'var(--n-600)'}}>Cancelar</button>
+                <button onClick={closeBioModal} className="flex-1 py-2.5 rounded-lg text-sm font-medium" style={{border:'1px solid var(--n-200)',color:'var(--n-600)'}}>Cancelar</button>
                 <button onClick={handleAddBio} disabled={saving} className="btn btn-primary flex-1 py-2.5 text-sm font-bold">{saving ? 'Salvando...' : 'Salvar'}</button>
               </div>
             </div>
@@ -699,8 +699,8 @@ const EvolutionContent: React.FC = () => {
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
             <div className="rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" style={{background:'var(--n-0)',border:'1px solid var(--n-200)',boxShadow:'var(--sh-lg)'}}>
               <div className="flex items-center justify-between p-5 sticky top-0 bg-white z-10" style={{borderBottom:'1px solid var(--n-200)'}}>
-                <h3 className="text-base font-bold" style={{color:'var(--n-900)'}}>Novas Medidas</h3>
-                <button onClick={() => setShowMeasModal(false)} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style={{background:'var(--n-100)'}}><X size={16} style={{color:'var(--n-500)'}} /></button>
+                <h3 className="text-base font-bold" style={{color:'var(--n-900)'}}>{editingMeasId ? 'Editar Medidas' : 'Novas Medidas'}</h3>
+                <button onClick={closeMeasModal} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style={{background:'var(--n-100)'}}><X size={16} style={{color:'var(--n-500)'}} /></button>
               </div>
               <div className="p-5 space-y-6">
                 <div className="grid grid-cols-3 gap-3">
