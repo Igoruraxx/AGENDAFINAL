@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Camera, Upload, Plus, TrendingUp, TrendingDown, ChevronDown, X, User, CalendarDays, CheckCircle2 } from 'lucide-react';
+import { Camera, Upload, Plus, TrendingUp, TrendingDown, ChevronDown, X, User, CalendarDays, CheckCircle2, Pencil } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import FeatureGate from '../components/FeatureGate';
 import { usePermissions } from '../hooks/usePermissions';
@@ -9,7 +9,7 @@ import { useImageUpload } from '../hooks/useImageUpload';
 
 const EvolutionContent: React.FC = () => {
   const { students: STUDENTS_LIST } = useStudents();
-  const { photos: evoPhotos, bioimpedance: evoBio, measurements: evoMeasurements, addPhoto: addEvoPhoto, addBioimpedance, addMeasurement, deletePhoto, deleteBioimpedance, deleteMeasurement } = useEvolution();
+  const { photos: evoPhotos, bioimpedance: evoBio, measurements: evoMeasurements, addPhoto: addEvoPhoto, addBioimpedance, addMeasurement, updateBioimpedance, updateMeasurement, deletePhoto, deleteBioimpedance, deleteMeasurement } = useEvolution();
   const [activeTab, setActiveTab] = useState<'photos' | 'bioimpedance' | 'measurements'>('photos');
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
@@ -25,6 +25,8 @@ const EvolutionContent: React.FC = () => {
   const [showBioModal, setShowBioModal] = useState(false);
   const [showMeasModal, setShowMeasModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingBioId, setEditingBioId] = useState<string | null>(null);
+  const [editingMeasId, setEditingMeasId] = useState<string | null>(null);
 
   // Hooks de upload — cada um gerencia File + previewUrl + cleanup
   const frontUpload  = useImageUpload();
@@ -120,13 +122,22 @@ const EvolutionContent: React.FC = () => {
     if (!bioDate || !selectedStudentId) return;
     setSaving(true);
     try {
-      await addBioimpedance({
-        studentId: selectedStudentId,
-        date: bioDate,
-        imageFile: bioUpload.file || undefined,
-        data: bioData,
-      });
+      if (editingBioId) {
+        await updateBioimpedance(editingBioId, {
+          date: bioDate,
+          imageFile: bioUpload.file ?? (bioUpload.previewUrl ? undefined : null),
+          data: bioData,
+        });
+      } else {
+        await addBioimpedance({
+          studentId: selectedStudentId,
+          date: bioDate,
+          imageFile: bioUpload.file || undefined,
+          data: bioData,
+        });
+      }
       setShowBioModal(false);
+      setEditingBioId(null);
       bioUpload.clear();
     } catch (error: any) {
       console.error('Erro ao salvar bio:', error);
@@ -134,23 +145,69 @@ const EvolutionContent: React.FC = () => {
     } finally { setSaving(false); }
   };
 
+  const openEditBio = (bio: typeof evoBio[0]) => {
+    setEditingBioId(bio.id);
+    setBioDate(bio.date.toISOString().split('T')[0]);
+    setBioData({ ...bio.data });
+    bioUpload.clear();
+    setShowBioModal(true);
+  };
+
+  const closeBioModal = () => {
+    setShowBioModal(false);
+    setEditingBioId(null);
+    bioUpload.clear();
+    setBioData({ weight: 0, bodyFatPct: 0, bodyFatKg: 0, muscleMass: 0, visceralFat: 0, leanMass: 0, musclePct: 0 });
+    setBioDate(new Date().toISOString().split('T')[0]);
+  };
+
   const handleAddMeas = async () => {
     if (!measDate || !selectedStudentId) return;
     setSaving(true);
     try {
-      await addMeasurement({
-        studentId: selectedStudentId,
-        date: measDate,
-        weight: measWeight,
-        height: measHeight,
-        measurements: measValues,
-        skinfolds: skinfolds,
-      });
+      if (editingMeasId) {
+        await updateMeasurement(editingMeasId, {
+          date: measDate,
+          weight: measWeight,
+          height: measHeight,
+          measurements: measValues,
+          skinfolds,
+        });
+      } else {
+        await addMeasurement({
+          studentId: selectedStudentId,
+          date: measDate,
+          weight: measWeight,
+          height: measHeight,
+          measurements: measValues,
+          skinfolds,
+        });
+      }
       setShowMeasModal(false);
+      setEditingMeasId(null);
     } catch (error) {
       console.error('Erro ao salvar medidas:', error);
       alert('Erro ao salvar.');
     } finally { setSaving(false); }
+  };
+
+  const openEditMeas = (m: typeof evoMeasurements[0]) => {
+    setEditingMeasId(m.id);
+    setMeasDate(m.date.toISOString().split('T')[0]);
+    setMeasWeight(m.weight);
+    setMeasHeight(m.height);
+    setMeasValues({ ...m.measurements });
+    setSkinfolds({ ...m.skinfolds });
+    setShowMeasModal(true);
+  };
+
+  const closeMeasModal = () => {
+    setShowMeasModal(false);
+    setEditingMeasId(null);
+    setMeasWeight(0); setMeasHeight(0);
+    setMeasValues({ chest: 0, waist: 0, hip: 0, arm: 0, thigh: 0, calf: 0 });
+    setSkinfolds({ triceps: 0, biceps: 0, subscapular: 0, suprailiac: 0, abdominal: 0 });
+    setMeasDate(new Date().toISOString().split('T')[0]);
   };
 
   const tabs = [
@@ -303,16 +360,15 @@ const EvolutionContent: React.FC = () => {
                           {idx === 0 && <span className="text-xs font-medium" style={{color:'var(--accent)'}}>Mais recente</span>}
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
                         {bio.image ? (
                           <button onClick={() => setBioImageViewer(bio.image)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors touch-manipulation" style={{background:'var(--accent-light)',color:'var(--accent)'}}>
                             <Camera size={13} />Ver imagem
                           </button>
-                        ) : (
-                          <button onClick={() => setShowBioModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors touch-manipulation" style={{background:'var(--n-100)',color:'var(--n-500)',border:'1px dashed var(--n-300)'}}>
-                            <Camera size={13} />Anexar imagem
-                          </button>
-                        )}
+                        ) : null}
+                        <button onClick={() => openEditBio(bio)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-blue-50 transition-colors" style={{color:'var(--accent)'}} title="Editar">
+                          <Pencil size={14} />
+                        </button>
                         <button onClick={() => { if(window.confirm('Excluir esta bioimpedância?')) deleteBioimpedance(bio.id); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-red-400 hover:text-red-500 transition-colors">
                           <X size={15} />
                         </button>
@@ -417,9 +473,14 @@ const EvolutionContent: React.FC = () => {
                             {idx === 0 && <span className="text-xs font-medium" style={{color:'var(--success)'}}>Mais recente</span>}
                           </div>
                         </div>
-                        <button onClick={() => { if(window.confirm('Excluir estas medidas?')) deleteMeasurement(m.id); }} className="w-8 h-8 flex flex-col items-center justify-center rounded-lg hover:bg-red-50 text-red-400 hover:text-red-500 transition-colors">
-                          <X size={15} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => openEditMeas(m)} className="w-8 h-8 flex flex-col items-center justify-center rounded-lg hover:bg-blue-50 transition-colors" style={{color:'var(--accent)'}} title="Editar">
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={() => { if(window.confirm('Excluir estas medidas?')) deleteMeasurement(m.id); }} className="w-8 h-8 flex flex-col items-center justify-center rounded-lg hover:bg-red-50 text-red-400 hover:text-red-500 transition-colors">
+                            <X size={15} />
+                          </button>
+                        </div>
                       </div>
                       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                         {[
