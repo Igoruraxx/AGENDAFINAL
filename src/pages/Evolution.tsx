@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { Camera, Upload, Plus, TrendingUp, TrendingDown, ChevronDown, X, User, CalendarDays } from 'lucide-react';
+import { Camera, Upload, Plus, TrendingUp, TrendingDown, ChevronDown, X, User, CalendarDays, CheckCircle2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import FeatureGate from '../components/FeatureGate';
 import { usePermissions } from '../hooks/usePermissions';
 import { useStudents } from '../hooks/useStudents';
 import { useEvolution } from '../hooks/useEvolution';
-
+import { useImageUpload } from '../hooks/useImageUpload';
 
 const EvolutionContent: React.FC = () => {
   const { students: STUDENTS_LIST } = useStudents();
@@ -26,13 +26,13 @@ const EvolutionContent: React.FC = () => {
   const [showMeasModal, setShowMeasModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Fotos: Files reais para upload + URLs para preview no modal
-  const [photoFileObjects, setPhotoFileObjects] = useState<{ front: File|null; side: File|null; back: File|null }>({ front: null, side: null, back: null });
-  const [photoFiles, setPhotoFiles] = useState<{ front: string; side: string; back: string }>({ front: '', side: '', back: '' });
+  // Hooks de upload — cada um gerencia File + previewUrl + cleanup
+  const frontUpload  = useImageUpload();
+  const sideUpload   = useImageUpload();
+  const backUpload   = useImageUpload();
+  const bioUpload    = useImageUpload();
 
   const [bioDate, setBioDate] = useState(new Date().toISOString().split('T')[0]);
-  const [bioFile, setBioFile] = useState<File | null>(null);
-  const [bioPreview, setBioPreview] = useState<string>('');
   const [bioData, setBioData] = useState({
     weight: 0,
     bodyFatPct: 0,
@@ -80,49 +80,40 @@ const EvolutionContent: React.FC = () => {
       peitoral: m.measurements.chest > 0 ? m.measurements.chest : null 
     }));
 
-  const handleFileChange = (slot: 'front' | 'side' | 'back', file: File | undefined) => {
-    if (!file) return;
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      alert('Por favor, selecione apenas arquivos de imagem (JPG, PNG, WEBP).');
-      return;
-    }
-    const maxSize = 5 * 1024 * 1024;
-    if (file.size > maxSize) {
-      alert('O arquivo deve ter no máximo 5MB.');
-      return;
-    }
-    // Guarda o File real para upload e uma URL de preview para exibir no modal
-    setPhotoFileObjects(prev => ({ ...prev, [slot]: file }));
-    setPhotoFiles(prev => ({ ...prev, [slot]: URL.createObjectURL(file) }));
-  };
+
 
   const handleAddPhoto = async () => {
     if (!photoDate || !selectedStudentId) return;
+    if (!frontUpload.file && !sideUpload.file && !backUpload.file) {
+      alert('Selecione ao menos uma foto antes de salvar.');
+      return;
+    }
     setSaving(true);
     try {
       await addEvoPhoto({
         studentId: selectedStudentId,
         date: photoDate,
-        frontFile: photoFileObjects.front || undefined,
-        sideFile: photoFileObjects.side || undefined,
-        backFile: photoFileObjects.back || undefined,
+        frontFile: frontUpload.file || undefined,
+        sideFile: sideUpload.file || undefined,
+        backFile: backUpload.file || undefined,
       });
       setShowPhotoModal(false);
       setPhotoDate('');
-      setPhotoFiles({ front: '', side: '', back: '' });
-      setPhotoFileObjects({ front: null, side: null, back: null });
-    } catch (error) {
+      frontUpload.clear();
+      sideUpload.clear();
+      backUpload.clear();
+    } catch (error: any) {
       console.error('Erro ao salvar fotos:', error);
-      alert('Erro ao salvar fotos. Tente novamente.');
+      alert(`Erro ao salvar fotos: ${error?.message || 'Tente novamente.'}`);
     } finally { setSaving(false); }
   };
 
-  const closePhotoModal = () => { 
-    setShowPhotoModal(false); 
-    setPhotoDate(''); 
-    setPhotoFiles({ front: '', side: '', back: '' }); 
-    setPhotoFileObjects({ front: null, side: null, back: null });
+  const closePhotoModal = () => {
+    setShowPhotoModal(false);
+    setPhotoDate('');
+    frontUpload.clear();
+    sideUpload.clear();
+    backUpload.clear();
   };
 
   const handleAddBio = async () => {
@@ -132,15 +123,14 @@ const EvolutionContent: React.FC = () => {
       await addBioimpedance({
         studentId: selectedStudentId,
         date: bioDate,
-        imageFile: bioFile || undefined,
+        imageFile: bioUpload.file || undefined,
         data: bioData,
       });
       setShowBioModal(false);
-      setBioFile(null);
-      setBioPreview('');
-    } catch (error) {
-      console.error('Erro ao salvar bioimpedância:', error);
-      alert('Erro ao salvar.');
+      bioUpload.clear();
+    } catch (error: any) {
+      console.error('Erro ao salvar bio:', error);
+      alert(`Erro ao salvar: ${error?.message || 'Tente novamente.'}`);
     } finally { setSaving(false); }
   };
 
@@ -492,17 +482,50 @@ const EvolutionContent: React.FC = () => {
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  {([{ slot: 'front' as const, label: 'Frente', ref: frontRef }, { slot: 'side' as const, label: 'Lado', ref: sideRef }, { slot: 'back' as const, label: 'Costas', ref: backRef }]).map(({ slot, label, ref }) => (
+                  {([
+                    { slot: 'front' as const, label: 'Frente', ref: frontRef, upload: frontUpload },
+                    { slot: 'side'  as const, label: 'Lado',   ref: sideRef,  upload: sideUpload },
+                    { slot: 'back'  as const, label: 'Costas', ref: backRef,  upload: backUpload },
+                  ]).map(({ slot, label, ref, upload }) => (
                     <div key={slot}>
                       <div className="text-xs font-medium mb-1.5 text-center" style={{color:'var(--n-500)'}}>{label}</div>
-                      <button disabled={!photoDate} onClick={() => ref.current?.click()} className={`w-full aspect-[3/4] rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-all ${!photoDate ? 'opacity-40 cursor-not-allowed' : photoFiles[slot] ? 'border-transparent p-0 overflow-hidden' : ''}`} style={!photoDate ? {borderColor:'var(--n-200)',background:'var(--n-50)'} : photoFiles[slot] ? {} : {borderColor:'var(--n-300)',background:'var(--n-50)'}}>
-                        {photoFiles[slot] ? (
-                          <img src={photoFiles[slot]} alt={label} className="w-full h-full object-cover" />
+                      <button
+                        disabled={!photoDate}
+                        onClick={() => ref.current?.click()}
+                        className={`relative w-full aspect-[3/4] rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1.5 transition-all overflow-hidden ${
+                          !photoDate ? 'opacity-40 cursor-not-allowed' : ''
+                        }`}
+                        style={upload.previewUrl
+                          ? { borderColor: 'transparent', padding: 0 }
+                          : { borderColor: 'var(--n-300)', background: 'var(--n-50)' }
+                        }
+                      >
+                        {upload.previewUrl ? (
+                          <>
+                            <img src={upload.previewUrl} alt={label} className="w-full h-full object-cover" />
+                            {/* Badge de selecionado */}
+                            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{background:'var(--accent)'}}>
+                              <CheckCircle2 size={12} className="text-white" />
+                            </div>
+                          </>
                         ) : (
-                          <><Camera size={18} style={{color:'var(--n-400)'}} /><span className="text-xs" style={{color:'var(--n-400)'}}>{photoDate ? 'Enviar' : 'Data primeiro'}</span></>
+                          <>
+                            <Camera size={20} style={{color:'var(--n-400)'}} />
+                            <span className="text-[10px] font-medium" style={{color:'var(--n-400)'}}>
+                              {photoDate ? 'Toque para enviar' : 'Data primeiro'}
+                            </span>
+                          </>
                         )}
                       </button>
-                      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={e => handleFileChange(slot, e.target.files?.[0])} />
+                      {upload.error && <p className="text-[10px] mt-1 text-center" style={{color:'var(--error)'}}>{upload.error}</p>}
+                      <input
+                        ref={ref}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={e => upload.setFile(e.target.files?.[0])}
+                      />
                     </div>
                   ))}
                 </div>
@@ -510,7 +533,13 @@ const EvolutionContent: React.FC = () => {
               </div>
               <div className="flex gap-3 p-5 pt-0">
                 <button onClick={closePhotoModal} className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors" style={{border:'1px solid var(--n-200)',color:'var(--n-600)'}}>Cancelar</button>
-                <button onClick={handleAddPhoto} disabled={!photoDate} className="btn btn-primary flex-1 py-2.5 text-sm font-bold disabled:opacity-40">Salvar</button>
+                <button
+                  onClick={handleAddPhoto}
+                  disabled={saving || !photoDate || (!frontUpload.file && !sideUpload.file && !backUpload.file)}
+                  className="btn btn-primary flex-1 py-2.5 text-sm font-bold disabled:opacity-40"
+                >
+                  {saving ? 'Salvando...' : 'Salvar'}
+                </button>
               </div>
             </div>
           </div>
@@ -532,16 +561,38 @@ const EvolutionContent: React.FC = () => {
                   </div>
                   <div>
                     <label className="text-xs font-semibold" style={{color:'var(--n-600)'}}>Imagem Exame</label>
-                    <button onClick={() => bioFileRef.current?.click()} className="input-base w-full mt-1 truncate text-left text-xs">
-                      {bioFile ? bioFile.name : 'Selecionar arquivo...'}
+                    <button
+                      onClick={() => bioFileRef.current?.click()}
+                      className="input-base w-full mt-1 truncate text-left text-xs flex items-center gap-2"
+                    >
+                      <Upload size={13} style={{color:'var(--n-400)'}} />
+                      <span className="truncate">{bioUpload.file ? bioUpload.file.name : 'Selecionar imagem...'}</span>
                     </button>
-                    <input ref={bioFileRef} type="file" className="hidden" accept="image/*" onChange={e => {
-                      const f = e.target.files?.[0];
-                      if(f) { setBioFile(f); setBioPreview(URL.createObjectURL(f)); }
-                    }} />
+                    <input
+                      ref={bioFileRef}
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={e => bioUpload.setFile(e.target.files?.[0])}
+                    />
                   </div>
                 </div>
-                {bioPreview && <img src={bioPreview} alt="Preview" className="w-full h-32 object-contain rounded-lg border border-dashed border-n-200" />}
+
+                {/* Preview da imagem de bioimpedância */}
+                {bioUpload.previewUrl && (
+                  <div className="relative rounded-xl overflow-hidden" style={{border:'1px solid var(--n-200)'}}>
+                    <img src={bioUpload.previewUrl} alt="Preview bioimpedância" className="w-full max-h-48 object-contain" style={{background:'var(--n-50)'}} />
+                    <button
+                      onClick={bioUpload.clear}
+                      className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
+                      style={{background:'rgba(0,0,0,0.5)'}}
+                    >
+                      <X size={13} className="text-white" />
+                    </button>
+                  </div>
+                )}
+                {bioUpload.error && <p className="text-xs" style={{color:'var(--error)'}}>{bioUpload.error}</p>}
 
                 <div className="grid grid-cols-2 gap-3">
                   {[
