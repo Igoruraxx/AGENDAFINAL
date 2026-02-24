@@ -500,12 +500,21 @@ const EvolutionContent: React.FC = () => {
                           : { borderColor: 'var(--n-300)', background: 'var(--n-50)' }
                         }
                       >
-                        {upload.previewUrl ? (
+                        {upload.compressing ? (
+                          <div className="flex flex-col items-center gap-1.5">
+                            <div className="spinner" style={{width:20,height:20}} />
+                            <span className="text-[10px] font-medium" style={{color:'var(--accent)'}}>Comprimindo...</span>
+                          </div>
+                        ) : upload.previewUrl ? (
                           <>
                             <img src={upload.previewUrl} alt={label} className="w-full h-full object-cover" />
-                            {/* Badge de selecionado */}
                             <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{background:'var(--accent)'}}>
                               <CheckCircle2 size={12} className="text-white" />
+                            </div>
+                            <div className="absolute bottom-1.5 left-1.5 right-1.5 text-center">
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{background:'rgba(0,0,0,0.5)',color:'#fff'}}>
+                                {upload.file ? `${Math.round(upload.file.size / 1024)}KB` : ''}
+                              </span>
                             </div>
                           </>
                         ) : (
@@ -535,10 +544,17 @@ const EvolutionContent: React.FC = () => {
                 <button onClick={closePhotoModal} className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors" style={{border:'1px solid var(--n-200)',color:'var(--n-600)'}}>Cancelar</button>
                 <button
                   onClick={handleAddPhoto}
-                  disabled={saving || !photoDate || (!frontUpload.file && !sideUpload.file && !backUpload.file)}
+                  disabled={saving
+                    || frontUpload.compressing || sideUpload.compressing || backUpload.compressing
+                    || !photoDate
+                    || (!frontUpload.file && !sideUpload.file && !backUpload.file)
+                  }
                   className="btn btn-primary flex-1 py-2.5 text-sm font-bold disabled:opacity-40"
                 >
-                  {saving ? 'Salvando...' : 'Salvar'}
+                  {(frontUpload.compressing || sideUpload.compressing || backUpload.compressing)
+                    ? 'Comprimindo...'
+                    : saving ? 'Salvando...' : 'Salvar'
+                  }
                 </button>
               </div>
             </div>
