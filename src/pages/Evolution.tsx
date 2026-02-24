@@ -591,8 +591,7 @@ const EvolutionContent: React.FC = () => {
                       <input
                         ref={ref}
                         type="file"
-                        accept="image/*"
-                        capture="environment"
+                        accept="image/jpeg,image/jpg,image/png,image/webp,image/heic"
                         className="hidden"
                         onChange={e => upload.setFile(e.target.files?.[0])}
                       />
@@ -649,8 +648,7 @@ const EvolutionContent: React.FC = () => {
                       ref={bioFileRef}
                       type="file"
                       className="hidden"
-                      accept="image/*"
-                      capture="environment"
+                      accept="image/jpeg,image/jpg,image/png,image/webp,image/heic"
                       onChange={e => bioUpload.setFile(e.target.files?.[0])}
                     />
                   </div>
