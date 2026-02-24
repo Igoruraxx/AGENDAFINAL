@@ -552,8 +552,10 @@ const Students: React.FC = () => {
                       type="number"
                       min="1"
                       max="28"
-                      value={formData.billingDay ?? 1}
-                      onChange={(e) => setFormData(prev => ({ ...prev, billingDay: Number(e.target.value) }))}
+                      value={formData.billingDay || ''}
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setFormData(prev => ({ ...prev, billingDay: e.target.value === '' ? 0 : Number(e.target.value) }))}
                       className="input-base"
                     />
                   </div>
@@ -578,8 +580,10 @@ const Students: React.FC = () => {
                   <input
                     type="number"
                     required
-                    value={formData.value}
-                    onChange={(e) => setFormData(prev => ({ ...prev, value: Number(e.target.value) }))}
+                    value={formData.value || ''}
+                    placeholder="0"
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setFormData(prev => ({ ...prev, value: e.target.value === '' ? 0 : Number(e.target.value) }))}
                     className="input-base"
                   />
                   {formErrors.value && (

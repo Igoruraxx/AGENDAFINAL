@@ -560,8 +560,15 @@ const AdminPanel: React.FC = () => {
                     </button>
                   ))}
                 </div>
-                <input type="number" value={addDaysAmount} onChange={e => setAddDaysAmount(+e.target.value)} min={1}
-                  className="input-base mt-2" placeholder="Ou digite um valor personalizado" />
+                <input
+                  type="number"
+                  value={addDaysAmount || ''}
+                  onChange={e => setAddDaysAmount(e.target.value === '' ? 0 : +e.target.value)}
+                  min={1}
+                  placeholder="0"
+                  onFocus={(e) => e.target.select()}
+                  className="input-base mt-2"
+                />
               </div>
 
               <div>
@@ -633,8 +640,15 @@ const AdminPanel: React.FC = () => {
                     </button>
                   ))}
                 </div>
-                <input type="number" value={removeDaysAmount} onChange={e => setRemoveDaysAmount(+e.target.value)} min={1}
-                  className="input-base mt-2" placeholder="Valor personalizado" />
+                <input
+                  type="number"
+                  value={removeDaysAmount || ''}
+                  onChange={e => setRemoveDaysAmount(e.target.value === '' ? 0 : +e.target.value)}
+                  min={1}
+                  placeholder="0"
+                  onFocus={(e) => e.target.select()}
+                  className="input-base mt-2"
+                />
               </div>
 
               <div>
@@ -694,8 +708,15 @@ const AdminPanel: React.FC = () => {
                     </button>
                   ))}
                 </div>
-                <input type="number" value={upgradeDays} onChange={e => setUpgradeDays(+e.target.value)} min={1}
-                  className="input-base mt-2" placeholder="Personalizado" />
+                <input
+                  type="number"
+                  value={upgradeDays || ''}
+                  onChange={e => setUpgradeDays(e.target.value === '' ? 0 : +e.target.value)}
+                  min={1}
+                  placeholder="0"
+                  onFocus={(e) => e.target.select()}
+                  className="input-base mt-2"
+                />
               </div>
 
               <div>

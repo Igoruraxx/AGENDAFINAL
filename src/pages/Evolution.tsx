@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, Plus, TrendingUp, TrendingDown, ChevronDown, X, User, CalendarDays, CheckCircle2, Pencil } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import FeatureGate from '../components/FeatureGate';
@@ -44,6 +44,20 @@ const EvolutionContent: React.FC = () => {
     leanMass: 0,
     musclePct: 0,
   });
+
+  // Cálculo automático de % Massa Muscular
+  useEffect(() => {
+    const weight = Number(bioData.weight) || 0;
+    const muscle = Number(bioData.muscleMass) || 0;
+    if (weight > 0) {
+      const pct = Number(((muscle / weight) * 100).toFixed(1));
+      if (bioData.musclePct !== pct) {
+        setBioData(prev => ({ ...prev, musclePct: pct }));
+      }
+    } else if (bioData.musclePct !== 0) {
+      setBioData(prev => ({ ...prev, musclePct: 0 }));
+    }
+  }, [bioData.weight, bioData.muscleMass]);
 
   const [measDate, setMeasDate] = useState(new Date().toISOString().split('T')[0]);
   const [measWeight, setMeasWeight] = useState(0);
@@ -121,19 +135,27 @@ const EvolutionContent: React.FC = () => {
   const handleAddBio = async () => {
     if (!bioDate || !selectedStudentId) return;
     setSaving(true);
+    // Garantia final do cálculo antes de salvar
+    const weight = Number(bioData.weight) || 0;
+    const muscle = Number(bioData.muscleMass) || 0;
+    const finalData = { ...bioData };
+    if (weight > 0) {
+      finalData.musclePct = Number(((muscle / weight) * 100).toFixed(1));
+    }
+
     try {
       if (editingBioId) {
         await updateBioimpedance(editingBioId, {
           date: bioDate,
           imageFile: bioUpload.file ?? (bioUpload.previewUrl ? undefined : null),
-          data: bioData,
+          data: finalData,
         });
       } else {
         await addBioimpedance({
           studentId: selectedStudentId,
           date: bioDate,
           imageFile: bioUpload.file || undefined,
-          data: bioData,
+          data: finalData,
         });
       }
       setShowBioModal(false);
@@ -148,7 +170,14 @@ const EvolutionContent: React.FC = () => {
   const openEditBio = (bio: typeof evoBio[0]) => {
     setEditingBioId(bio.id);
     setBioDate(bio.date.toISOString().split('T')[0]);
-    setBioData({ ...bio.data });
+    
+    // Forçar cálculo ao abrir para garantir que dados antigos sejam corrigidos na visualização
+    const data = { ...bio.data };
+    if (data.weight > 0) {
+      data.musclePct = Number(((data.muscleMass / data.weight) * 100).toFixed(1));
+    }
+    setBioData(data);
+    
     bioUpload.clear();
     setShowBioModal(true);
   };
@@ -677,7 +706,17 @@ const EvolutionContent: React.FC = () => {
                   ].map(field => (
                     <div key={field.key}>
                       <label className="text-[10px] font-bold uppercase" style={{color: 'var(--n-500)'}}>{field.label}</label>
-                      <input type="number" step="0.1" value={bioData[field.key as keyof typeof bioData]} onChange={e => setBioData({...bioData, [field.key]: Number(e.target.value)})} className="input-base w-full mt-1" />
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={bioData[field.key as keyof typeof bioData] || ''}
+                        placeholder="0"
+                        onFocus={(e) => field.key !== 'musclePct' && e.target.select()}
+                        onChange={e => setBioData({...bioData, [field.key]: e.target.value === '' ? 0 : Number(e.target.value)})}
+                        readOnly={field.key === 'musclePct'}
+                        className={`input-base w-full mt-1 ${field.key === 'musclePct' ? 'opacity-60 bg-black/[0.03] cursor-not-allowed' : ''}`}
+                        title={field.key === 'musclePct' ? 'Calculado automaticamente (Massa Musc / Peso)' : ''}
+                      />
                     </div>
                   ))}
                 </div>
@@ -713,11 +752,26 @@ const EvolutionContent: React.FC = () => {
                   </div>
                   <div>
                     <label className="text-[10px] font-bold" style={{color: 'var(--n-600)'}}>Peso (kg)</label>
-                    <input type="number" step="0.1" value={measWeight} onChange={e => setMeasWeight(Number(e.target.value))} className="input-base w-full mt-1" />
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={measWeight || ''}
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={e => setMeasWeight(e.target.value === '' ? 0 : Number(e.target.value))}
+                      className="input-base w-full mt-1"
+                    />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold" style={{color: 'var(--n-600)'}}>Altura (cm)</label>
-                    <input type="number" value={measHeight} onChange={e => setMeasHeight(Number(e.target.value))} className="input-base w-full mt-1" />
+                    <input
+                      type="number"
+                      value={measHeight || ''}
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={e => setMeasHeight(e.target.value === '' ? 0 : Number(e.target.value))}
+                      className="input-base w-full mt-1"
+                    />
                   </div>
                 </div>
 
@@ -727,7 +781,15 @@ const EvolutionContent: React.FC = () => {
                     {Object.keys(measValues).map(k => (
                       <div key={k}>
                         <label className="text-[10px] font-bold uppercase" style={{color: 'var(--n-500)'}}>{k === 'chest' ? 'Peito' : k === 'waist' ? 'Cintura' : k === 'hip' ? 'Quadril' : k === 'arm' ? 'Braço' : k === 'thigh' ? 'Coxa' : 'Panturr.'}</label>
-                        <input type="number" step="0.1" value={measValues[k as keyof typeof measValues]} onChange={e => setMeasValues({...measValues, [k]: Number(e.target.value)})} className="input-base w-full mt-1" />
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={measValues[k as keyof typeof measValues] || ''}
+                          placeholder="0"
+                          onFocus={(e) => e.target.select()}
+                          onChange={e => setMeasValues({...measValues, [k]: e.target.value === '' ? 0 : Number(e.target.value)})}
+                          className="input-base w-full mt-1"
+                        />
                       </div>
                     ))}
                   </div>
@@ -741,7 +803,15 @@ const EvolutionContent: React.FC = () => {
                         <label className="text-[10px] font-bold uppercase" style={{color: 'var(--n-500)'}}>
                           {k === 'triceps' ? 'Triceps' : k === 'biceps' ? 'Biceps' : k === 'subscapular' ? 'Subscap.' : k === 'suprailiac' ? 'Suprail.' : 'Abdom.'}
                         </label>
-                        <input type="number" step="0.1" value={skinfolds[k as keyof typeof skinfolds]} onChange={e => setSkinfolds({...skinfolds, [k]: Number(e.target.value)})} className="input-base w-full mt-1" />
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={skinfolds[k as keyof typeof skinfolds] || ''}
+                          placeholder="0"
+                          onFocus={(e) => e.target.select()}
+                          onChange={e => setSkinfolds({...skinfolds, [k]: e.target.value === '' ? 0 : Number(e.target.value)})}
+                          className="input-base w-full mt-1"
+                        />
                       </div>
                     ))}
                   </div>
