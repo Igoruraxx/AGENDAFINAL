@@ -582,7 +582,7 @@ const EvolutionContent: React.FC = () => {
                           <>
                             <Camera size={20} style={{color:'var(--n-400)'}} />
                             <span className="text-[10px] font-medium" style={{color:'var(--n-400)'}}>
-                              {photoDate ? 'Toque para selecionar foto' : 'Data primeiro'}
+                              {photoDate ? 'Abrir Galeria' : 'Data primeiro'}
                             </span>
                           </>
                         )}
@@ -642,7 +642,7 @@ const EvolutionContent: React.FC = () => {
                       className="input-base w-full mt-1 truncate text-left text-xs flex items-center gap-2"
                     >
                       <Upload size={13} style={{color:'var(--n-400)'}} />
-                      <span className="truncate">{bioUpload.file ? bioUpload.file.name : 'Selecionar da galeria...'}</span>
+                      <span className="truncate">{bioUpload.file ? bioUpload.file.name : 'Abrir Galeria...'}</span>
                     </button>
                     <input
                       ref={bioFileRef}
