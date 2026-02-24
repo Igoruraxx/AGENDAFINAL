@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export const usePhoneMask = (initialValue: string = '') => {
   const [value, setValue] = useState(initialValue);

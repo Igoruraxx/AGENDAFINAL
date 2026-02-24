@@ -1,9 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Users, DollarSign, TrendingUp, Search, Crown, Shield,
-  ChevronRight, X, Plus, Minus, ArrowUpCircle, Calendar,
-  Clock, Gift, CreditCard, History, ArrowLeft, Check,
-  AlertTriangle, UserCheck, UserX, Settings, ChevronDown
+  Users, Shield, Crown
 } from 'lucide-react';
 import { AdminUser, PlanHistoryEntry, UserPlan, PlanOrigin } from '../types';
 
@@ -97,7 +94,6 @@ const INITIAL_USERS: AdminUser[] = [
 
 const AdminPanel: React.FC = () => {
   const [users, setUsers] = useState<AdminUser[]>(INITIAL_USERS);
-  const [activeSection, setActiveSection] = useState<'users' | 'overview'>('users');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPlan, setFilterPlan] = useState<'all' | 'free' | 'premium'>('all');
