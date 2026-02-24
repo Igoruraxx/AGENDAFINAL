@@ -4,5 +4,10 @@
   "framework": "create-react-app",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  ],
+  "build": {
+    "env": {
+      "REACT_APP_SUPABASE_URL": "https://irergynffqnkertdagbs.supabase.co"
+    }
+  }
 }

@@ -136,6 +136,7 @@ const Students: React.FC = () => {
       selectedTimes: [],
       isConsulting: false,
       isActive: true,
+      billingDay: 1,
     });
     phoneMask.setValue('');
   };
@@ -181,8 +182,8 @@ const Students: React.FC = () => {
         ) || []
       }));
     } else {
-      const atLimit = (formData.selectedDays?.length || 0) >= (formData.weeklyFrequency || 1);
-      if (atLimit) return;
+      const atDayLimit = (formData.selectedDays?.length || 0) >= (formData.weeklyFrequency || 1);
+      if (atDayLimit) return;
       setFormData(prev => ({
         ...prev,
         selectedDays: [...(prev.selectedDays || []), day],
@@ -441,9 +442,8 @@ const Students: React.FC = () => {
         })}
       </div>
 
-      {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-[100]" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
           <div className="w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl" style={{background:'var(--n-0)',border:'1px solid var(--n-200)',boxShadow:'var(--sh-lg)'}}>
             {/* Modal Header */}
             <div className="sticky top-0 px-5 pt-5 pb-4 z-10 rounded-t-2xl sm:rounded-t-2xl" style={{background:'var(--n-0)',borderBottom:'1px solid var(--n-200)'}}>
@@ -621,7 +621,7 @@ const Students: React.FC = () => {
                     <div className="space-y-2">
                       {formData.selectedDays?.map((day, idx) => (
                         <div key={day} className="flex items-center gap-3 p-2.5 rounded-lg" style={{background:'var(--n-50)',border:'1px solid var(--n-200)'}}>
-                          <span className="text-sm font-semibold min-w-[80px]" style={{color:'var(--n-700)'}}>{day}</span>
+                           <span className="text-sm font-semibold min-w-[80px]" style={{color:'var(--n-700)'}}>{day}</span>
                           <select
                             value={formData.selectedTimes?.[idx] || '08:00'}
                             onChange={(e) => handleTimeChange(idx, e.target.value)}

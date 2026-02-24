@@ -105,14 +105,7 @@ export const commonValidations = {
   },
   phone: {
     required: true,
-    pattern: validationPatterns.phone,
-    custom: (value: string) => {
-      const cleanPhone = value.replace(/\D/g, '');
-      if (cleanPhone.length < 10 || cleanPhone.length > 11) {
-        return 'Telefone inválido';
-      }
-      return null;
-    },
+    minLength: 3,
   },
   email: {
     required: true,

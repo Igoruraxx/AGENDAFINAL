@@ -605,9 +605,8 @@ const Schedule: React.FC = () => {
         )}
       </div>
 
-      {/* Quick Add Modal */}
       {showQuickAdd && (
-        <div className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-[100]" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
           <div className="w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden" style={{background:'var(--n-0)',border:'1px solid var(--n-200)',boxShadow:'var(--sh-lg)'}}>
             <div className="px-5 pt-5 pb-4" style={{borderBottom:'1px solid var(--n-200)'}}>
               <div className="flex items-center justify-between">
@@ -712,11 +711,10 @@ const Schedule: React.FC = () => {
         </div>
       )}
 
-      {/* Appointment Detail Modal */}
       {selectedApt && (() => {
         const initials = selectedApt.studentName.split(' ').slice(0,2).map(n=>n[0]).join('').toUpperCase();
         return (
-        <div className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-[100]" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
           <div className="w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden max-h-[90dvh] flex flex-col" style={{background:'var(--n-0)',border:'1px solid var(--n-200)',boxShadow:'var(--sh-lg)'}}>
             {/* Header */}
             <div className="px-5 pt-5 pb-4 flex-shrink-0" style={{borderBottom:'1px solid var(--n-200)'}}>

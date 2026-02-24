@@ -1,15 +1,15 @@
 import React, { useState, useRef } from 'react';
 import { Camera, Upload, Plus, TrendingUp, TrendingDown, ChevronDown, X, User, CalendarDays } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-// types imported via hooks; explicit imports removed to avoid unused warnings
 import FeatureGate from '../components/FeatureGate';
 import { usePermissions } from '../hooks/usePermissions';
 import { useStudents } from '../hooks/useStudents';
 import { useEvolution } from '../hooks/useEvolution';
 
+
 const EvolutionContent: React.FC = () => {
   const { students: STUDENTS_LIST } = useStudents();
-  const { photos: evoPhotos, bioimpedance: evoBio, measurements: evoMeasurements, addPhoto: addEvoPhoto } = useEvolution();
+  const { photos: evoPhotos, bioimpedance: evoBio, measurements: evoMeasurements, addPhoto: addEvoPhoto, addBioimpedance, addMeasurement } = useEvolution();
   const [activeTab, setActiveTab] = useState<'photos' | 'bioimpedance' | 'measurements'>('photos');
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
@@ -17,10 +17,39 @@ const EvolutionContent: React.FC = () => {
   const [photoDate, setPhotoDate] = useState('');
   const [photoFiles, setPhotoFiles] = useState<{ front: string; side: string; back: string }>({ front: '', side: '', back: '' });
   const [bioImageViewer, setBioImageViewer] = useState<string | null>(null);
-  // removed unused uploading state to satisfy lint
+
   const frontRef = useRef<HTMLInputElement>(null);
   const sideRef = useRef<HTMLInputElement>(null);
   const backRef = useRef<HTMLInputElement>(null);
+  const bioFileRef = useRef<HTMLInputElement>(null);
+
+  const [showBioModal, setShowBioModal] = useState(false);
+  const [showMeasModal, setShowMeasModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const [bioDate, setBioDate] = useState(new Date().toISOString().split('T')[0]);
+  const [bioFile, setBioFile] = useState<File | null>(null);
+  const [bioPreview, setBioPreview] = useState<string>('');
+  const [bioData, setBioData] = useState({
+    weight: 0,
+    bodyFatPct: 0,
+    bodyFatKg: 0,
+    muscleMass: 0,
+    visceralFat: 0,
+    leanMass: 0,
+    musclePct: 0,
+  });
+
+  const [measDate, setMeasDate] = useState(new Date().toISOString().split('T')[0]);
+  const [measWeight, setMeasWeight] = useState(0);
+  const [measHeight, setMeasHeight] = useState(0);
+  const [measValues, setMeasValues] = useState({
+    chest: 0, waist: 0, hip: 0, arm: 0, thigh: 0, calf: 0
+  });
+  const [skinfolds, setSkinfolds] = useState({
+    triceps: 0, biceps: 0, subscapular: 0, suprailiac: 0, abdominal: 0
+  });
+
   const selectedStudent = STUDENTS_LIST.find(s => s.id === selectedStudentId);
 
   const photos = evoPhotos;
@@ -30,29 +59,39 @@ const EvolutionContent: React.FC = () => {
   const filteredPhotos = selectedStudentId ? photos.filter(p => p.studentId === selectedStudentId) : [];
   const filteredBio = selectedStudentId ? bioimpedanceData.filter(b => b.studentId === selectedStudentId) : [];
   const filteredMeasurements = selectedStudentId ? measurements.filter(m => m.studentId === selectedStudentId) : [];
-  const weightData = filteredMeasurements.map(m => ({ date: m.date.toLocaleDateString('pt-BR', { month: 'short' }), peso: m.weight }));
-  const bodyFatData = filteredBio.map(b => ({ date: b.date.toLocaleDateString('pt-BR', { month: 'short' }), gordura: b.data.bodyFatPct, massa: b.data.muscleMass }));
-  const measurementsChartData = filteredMeasurements.map(m => ({ date: m.date.toLocaleDateString('pt-BR', { month: 'short' }), cintura: m.measurements.waist, quadril: m.measurements.hip, peitoral: m.measurements.chest }));
+  
+  const weightData = filteredMeasurements
+    .filter(m => m.weight > 0)
+    .map(m => ({ 
+      date: m.date.toLocaleDateString('pt-BR', { month: 'short' }), 
+      peso: m.weight 
+    }));
+  
+  
+  const measurementsChartData = filteredMeasurements
+    .filter(m => (m.measurements.waist > 0 || m.measurements.hip > 0 || m.measurements.chest > 0))
+    .map(m => ({ 
+      date: m.date.toLocaleDateString('pt-BR', { month: 'short' }), 
+      cintura: m.measurements.waist > 0 ? m.measurements.waist : null, 
+      quadril: m.measurements.hip > 0 ? m.measurements.hip : null, 
+      peitoral: m.measurements.chest > 0 ? m.measurements.chest : null 
+    }));
 
   const handleFileChange = (slot: 'front' | 'side' | 'back', file: File | undefined) => {
     if (!file) return;
-    
-    // Validação de tipo de arquivo
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
       alert('Por favor, selecione apenas arquivos de imagem (JPG, PNG, WEBP).');
       return;
     }
-    
-    // Validação de tamanho (máximo 5MB)
     const maxSize = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSize) {
       alert('O arquivo deve ter no máximo 5MB.');
       return;
     }
-    
     setPhotoFiles(prev => ({ ...prev, [slot]: URL.createObjectURL(file) }));
   };
+
   const handleAddPhoto = async () => {
     if (!photoDate || !selectedStudentId) return;
     try {
@@ -68,7 +107,50 @@ const EvolutionContent: React.FC = () => {
       alert('Erro ao salvar fotos. Tente novamente.');
     }
   };
-  const closePhotoModal = () => { setShowPhotoModal(false); setPhotoDate(''); setPhotoFiles({ front: '', side: '', back: '' }); };
+
+  const closePhotoModal = () => { 
+    setShowPhotoModal(false); 
+    setPhotoDate(''); 
+    setPhotoFiles({ front: '', side: '', back: '' }); 
+  };
+
+  const handleAddBio = async () => {
+    if (!bioDate || !selectedStudentId) return;
+    setSaving(true);
+    try {
+      await addBioimpedance({
+        studentId: selectedStudentId,
+        date: bioDate,
+        imageFile: bioFile || undefined,
+        data: bioData,
+      });
+      setShowBioModal(false);
+      setBioFile(null);
+      setBioPreview('');
+    } catch (error) {
+      console.error('Erro ao salvar bioimpedância:', error);
+      alert('Erro ao salvar.');
+    } finally { setSaving(false); }
+  };
+
+  const handleAddMeas = async () => {
+    if (!measDate || !selectedStudentId) return;
+    setSaving(true);
+    try {
+      await addMeasurement({
+        studentId: selectedStudentId,
+        date: measDate,
+        weight: measWeight,
+        height: measHeight,
+        measurements: measValues,
+        skinfolds: skinfolds,
+      });
+      setShowMeasModal(false);
+    } catch (error) {
+      console.error('Erro ao salvar medidas:', error);
+      alert('Erro ao salvar.');
+    } finally { setSaving(false); }
+  };
 
   const tabs = [
     { id: 'photos' as const, label: 'Fotos', icon: Camera },
@@ -174,7 +256,7 @@ const EvolutionContent: React.FC = () => {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-sm font-bold" style={{color:'var(--n-900)'}}>Bioimpedâncias</h2>
-              <button onClick={() => {}} className="btn btn-primary text-xs px-3 py-2"><Plus size={14} />Adicionar</button>
+              <button onClick={() => setShowBioModal(true)} className="btn btn-primary text-xs px-3 py-2"><Plus size={14} />Adicionar</button>
             </div>
             {filteredBio.length === 0 && (
               <div className="text-center py-12">
@@ -209,7 +291,7 @@ const EvolutionContent: React.FC = () => {
                           <Camera size={13} />Ver imagem
                         </button>
                       ) : (
-                        <button onClick={() => {}} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors touch-manipulation" style={{background:'var(--n-100)',color:'var(--n-500)',border:'1px dashed var(--n-300)'}}>
+                        <button onClick={() => setShowBioModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors touch-manipulation" style={{background:'var(--n-100)',color:'var(--n-500)',border:'1px dashed var(--n-300)'}}>
                           <Camera size={13} />Anexar imagem
                         </button>
                       )}
@@ -257,7 +339,7 @@ const EvolutionContent: React.FC = () => {
           <div className="space-y-4 sm:space-y-5">
             <div className="flex justify-between items-center">
               <h2 className="text-sm font-bold" style={{color:'var(--n-900)'}}>Medidas e Dobras</h2>
-              <button onClick={() => {}} className="btn btn-primary text-xs px-3 py-2"><Plus size={14} />Adicionar</button>
+              <button onClick={() => setShowMeasModal(true)} className="btn btn-primary text-xs px-3 py-2"><Plus size={14} />Adicionar</button>
             </div>
             {filteredMeasurements.length === 0 && (
               <div className="text-center py-12">
@@ -267,58 +349,51 @@ const EvolutionContent: React.FC = () => {
             )}
             {filteredMeasurements.length > 0 && (<>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="rounded-xl p-4 sm:col-span-2" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
-                  <h3 className="text-sm font-semibold mb-3" style={{color:'var(--n-700)'}}>Medidas Corporais (cm)</h3>
-                  <ResponsiveContainer width="100%" height={180}>
-                    <LineChart data={measurementsChartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
-                      <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontSize: '12px' }} formatter={(v: any, n: any) => [`${v ?? ''} cm`, n === 'cintura' ? 'Cintura' : n === 'quadril' ? 'Quadril' : 'Peitoral']} />
-                      <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px' }} formatter={(v: any) => v === 'cintura' ? 'Cintura' : v === 'quadril' ? 'Quadril' : 'Peitoral'} />
-                      <Line type="monotone" dataKey="cintura" stroke="#F59E0B" strokeWidth={2.5} dot={{ r: 4, fill: '#F59E0B', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-                      <Line type="monotone" dataKey="quadril" stroke="#8B5CF6" strokeWidth={2.5} dot={{ r: 4, fill: '#8B5CF6', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-                      <Line type="monotone" dataKey="peitoral" stroke="#06B6D4" strokeWidth={2.5} dot={{ r: 4, fill: '#06B6D4', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="rounded-xl p-4" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
-                  <h3 className="text-sm font-semibold mb-3" style={{color:'var(--n-700)'}}>Evolução do Peso</h3>
-                  <ResponsiveContainer width="100%" height={160}>
-                    <LineChart data={weightData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
-                      <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontSize: '12px' }} formatter={(v: any) => [`${v ?? ''} kg`, 'Peso']} />
-                      <Line type="monotone" dataKey="peso" stroke="#3B82F6" strokeWidth={2.5} dot={{ r: 5, fill: '#3B82F6', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 7 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="rounded-xl p-4" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
-                  <h3 className="text-sm font-semibold mb-3" style={{color:'var(--n-700)'}}>Gordura vs Massa Muscular</h3>
-                  <ResponsiveContainer width="100%" height={160}>
-                    <LineChart data={bodyFatData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
-                      <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontSize: '12px' }} formatter={(v: any, n: any) => [n === 'gordura' ? `${v ?? ''}%` : `${v ?? ''} kg`, n === 'gordura' ? 'Gordura' : 'Massa Musc.']} />
-                      <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px' }} formatter={(v: any) => v === 'gordura' ? 'Gordura' : 'Massa Musc.'} />
-                      <Line type="monotone" dataKey="gordura" stroke="#EF4444" strokeWidth={2.5} dot={{ r: 4, fill: '#EF4444', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-                      <Line type="monotone" dataKey="massa" stroke="#10B981" strokeWidth={2.5} dot={{ r: 4, fill: '#10B981', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+                {measurementsChartData.length > 0 && (
+                  <div className="rounded-xl p-4 sm:col-span-2" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
+                    <h3 className="text-sm font-semibold mb-3" style={{color:'var(--n-700)'}}>Medidas Corporais (cm)</h3>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <LineChart data={measurementsChartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
+                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontSize: '12px' }} formatter={(v: any, n: any) => [`${v ?? ''} cm`, n === 'cintura' ? 'Cintura' : n === 'quadril' ? 'Quadril' : 'Peitoral']} />
+                        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px' }} formatter={(v: any) => v === 'cintura' ? 'Cintura' : v === 'quadril' ? 'Quadril' : 'Peitoral'} />
+                        <Line type="monotone" dataKey="cintura" stroke="#F59E0B" strokeWidth={2.5} dot={{ r: 4, fill: '#F59E0B', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} connectNulls />
+                        <Line type="monotone" dataKey="quadril" stroke="#8B5CF6" strokeWidth={2.5} dot={{ r: 4, fill: '#8B5CF6', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} connectNulls />
+                        <Line type="monotone" dataKey="peitoral" stroke="#06B6D4" strokeWidth={2.5} dot={{ r: 4, fill: '#06B6D4', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} connectNulls />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+                {weightData.length > 0 && (
+                  <div className="rounded-xl p-4" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
+                    <h3 className="text-sm font-semibold mb-3" style={{color:'var(--n-700)'}}>Evolução do Peso</h3>
+                    <ResponsiveContainer width="100%" height={160}>
+                      <LineChart data={weightData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
+                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontSize: '12px' }} formatter={(v: any) => [`${v ?? ''} kg`, 'Peso']} />
+                        <Line type="monotone" dataKey="peso" stroke="#3B82F6" strokeWidth={2.5} dot={{ r: 5, fill: '#3B82F6', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 7 }} connectNulls />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </div>
+
               <div className="space-y-3">
                 {filteredMeasurements.map((m, idx) => {
                   const prev = filteredMeasurements[idx + 1];
                   return (
                     <div key={m.id} className="rounded-xl p-4" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{background:'var(--success)',color:'var(--n-0)'}}><TrendingUp size={13} /></div>
-                        <div>
-                          <div className="text-sm font-semibold" style={{color:'var(--n-900)'}}>{m.date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
-                          {idx === 0 && <span className="text-xs font-medium" style={{color:'var(--success)'}}>Mais recente</span>}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{background:'var(--success)',color:'var(--n-0)'}}><TrendingUp size={13} /></div>
+                          <div>
+                            <div className="text-sm font-semibold" style={{color:'var(--n-900)'}}>{m.date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+                            {idx === 0 && <span className="text-xs font-medium" style={{color:'var(--success)'}}>Mais recente</span>}
+                          </div>
                         </div>
                       </div>
                       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -330,16 +405,30 @@ const EvolutionContent: React.FC = () => {
                           { label: 'Coxa', val: m.measurements.thigh, prevVal: prev?.measurements.thigh },
                           { label: 'Panturr.', val: m.measurements.calf, prevVal: prev?.measurements.calf },
                         ].map(({ label, val, prevVal }) => {
-                          const d = prevVal !== undefined ? val - prevVal : null;
+                          if (val === 0) return null;
+                          const d = prevVal !== undefined && prevVal > 0 ? val - prevVal : null;
                           return (
                             <div key={label} className="rounded-lg p-2 text-center" style={{background:'var(--n-50)',border:'1px solid var(--n-200)'}}>
-                              <div className="text-xs mb-0.5" style={{color:'var(--n-500)'}}>{label}</div>
-                              <div className="text-sm font-bold" style={{color:'var(--n-900)'}}>{val}<span className="text-xs font-normal" style={{color:'var(--n-400)'}}>cm</span></div>
-                              {d !== null && d !== 0 && <div className={`text-xs font-medium ${d < 0 ? 'text-green-500' : 'text-red-500'}`}>{d > 0 ? '+' : ''}{d}</div>}
+                              <div className="text-[10px] mb-0.5 uppercase font-bold" style={{color:'var(--n-500)'}}>{label}</div>
+                              <div className="text-sm font-bold" style={{color:'var(--n-900)'}}>{val}<span className="text-[10px] font-normal" style={{color:'var(--n-400)'}}>cm</span></div>
+                              {d !== null && d !== 0 && <div className={`text-[10px] font-bold ${d < 0 ? 'text-green-500' : 'text-red-500'}`}>{d > 0 ? '+' : ''}{d.toFixed(1)}</div>}
                             </div>
                           );
                         })}
                       </div>
+                      {(m.skinfolds.triceps > 0 || m.skinfolds.abdominal > 0) && (
+                        <div className="mt-3 grid grid-cols-3 sm:grid-cols-5 gap-2 pt-3" style={{borderTop:'1px dashed var(--n-200)'}}>
+                           {Object.entries(m.skinfolds).map(([key, value]) => {
+                             if (value === 0) return null;
+                             return (
+                               <div key={key} className="text-center">
+                                 <div className="text-[9px] uppercase font-bold" style={{color:'var(--n-400)'}}>{key}</div>
+                                 <div className="text-xs font-bold" style={{color:'var(--n-600)'}}>{value}mm</div>
+                               </div>
+                             );
+                           })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -350,7 +439,7 @@ const EvolutionContent: React.FC = () => {
 
         {/* Photo Modal */}
         {showPhotoModal && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
             <div className="rounded-2xl w-full max-w-md" style={{background:'var(--n-0)',border:'1px solid var(--n-200)',boxShadow:'var(--sh-lg)'}}>
               <div className="flex items-center justify-between p-5" style={{borderBottom:'1px solid var(--n-200)'}}>
                 <div>
@@ -368,7 +457,7 @@ const EvolutionContent: React.FC = () => {
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  {([{ slot: 'front' as const, label: 'Frente', ref: frontRef, color: 'from-blue-400 to-blue-500' }, { slot: 'side' as const, label: 'Lado', ref: sideRef, color: 'from-purple-400 to-purple-500' }, { slot: 'back' as const, label: 'Costas', ref: backRef, color: 'from-indigo-400 to-indigo-500' }]).map(({ slot, label, ref, color }) => (
+                  {([{ slot: 'front' as const, label: 'Frente', ref: frontRef }, { slot: 'side' as const, label: 'Lado', ref: sideRef }, { slot: 'back' as const, label: 'Costas', ref: backRef }]).map(({ slot, label, ref }) => (
                     <div key={slot}>
                       <div className="text-xs font-medium mb-1.5 text-center" style={{color:'var(--n-500)'}}>{label}</div>
                       <button disabled={!photoDate} onClick={() => ref.current?.click()} className={`w-full aspect-[3/4] rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-all ${!photoDate ? 'opacity-40 cursor-not-allowed' : photoFiles[slot] ? 'border-transparent p-0 overflow-hidden' : ''}`} style={!photoDate ? {borderColor:'var(--n-200)',background:'var(--n-50)'} : photoFiles[slot] ? {} : {borderColor:'var(--n-300)',background:'var(--n-50)'}}>
@@ -387,6 +476,117 @@ const EvolutionContent: React.FC = () => {
               <div className="flex gap-3 p-5 pt-0">
                 <button onClick={closePhotoModal} className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors" style={{border:'1px solid var(--n-200)',color:'var(--n-600)'}}>Cancelar</button>
                 <button onClick={handleAddPhoto} disabled={!photoDate} className="btn btn-primary flex-1 py-2.5 text-sm font-bold disabled:opacity-40">Salvar</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bioimpedance Modal */}
+        {showBioModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
+            <div className="rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" style={{background:'var(--n-0)',border:'1px solid var(--n-200)',boxShadow:'var(--sh-lg)'}}>
+              <div className="flex items-center justify-between p-5 sticky top-0 bg-white z-10" style={{borderBottom:'1px solid var(--n-200)'}}>
+                <h3 className="text-base font-bold" style={{color:'var(--n-900)'}}>Nova Bioimpedância</h3>
+                <button onClick={() => setShowBioModal(false)} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style={{background:'var(--n-100)'}}><X size={16} style={{color:'var(--n-500)'}} /></button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold" style={{color:'var(--n-600)'}}>Data</label>
+                    <input type="date" value={bioDate} onChange={e => setBioDate(e.target.value)} className="input-base w-full mt-1" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold" style={{color:'var(--n-600)'}}>Imagem Exame</label>
+                    <button onClick={() => bioFileRef.current?.click()} className="input-base w-full mt-1 truncate text-left text-xs">
+                      {bioFile ? bioFile.name : 'Selecionar arquivo...'}
+                    </button>
+                    <input ref={bioFileRef} type="file" className="hidden" accept="image/*" onChange={e => {
+                      const f = e.target.files?.[0];
+                      if(f) { setBioFile(f); setBioPreview(URL.createObjectURL(f)); }
+                    }} />
+                  </div>
+                </div>
+                {bioPreview && <img src={bioPreview} alt="Preview" className="w-full h-32 object-contain rounded-lg border border-dashed border-n-200" />}
+
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: 'Peso (kg)', key: 'weight' },
+                    { label: '% Gordura', key: 'bodyFatPct' },
+                    { label: 'Gordura (kg)', key: 'bodyFatKg' },
+                    { label: 'Massa Musc (kg)', key: 'muscleMass' },
+                    { label: 'Gord. Visceral', key: 'visceralFat' },
+                    { label: 'Massa Magra (kg)', key: 'leanMass' },
+                    { label: '% Mas. Musc', key: 'musclePct' },
+                  ].map(field => (
+                    <div key={field.key}>
+                      <label className="text-[10px] font-bold uppercase" style={{color:'var(--n-500)'}}>{field.label}</label>
+                      <input type="number" step="0.1" value={bioData[field.key as keyof typeof bioData]} onChange={e => setBioData({...bioData, [field.key]: Number(e.target.value)})} className="input-base w-full mt-1" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-3 p-5 pt-0">
+                <button onClick={() => setShowBioModal(false)} className="flex-1 py-2.5 rounded-lg text-sm font-medium" style={{border:'1px solid var(--n-200)',color:'var(--n-600)'}}>Cancelar</button>
+                <button onClick={handleAddBio} disabled={saving} className="btn btn-primary flex-1 py-2.5 text-sm font-bold">{saving ? 'Salvando...' : 'Salvar'}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Measurements Modal */}
+        {showMeasModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
+            <div className="rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" style={{background:'var(--n-0)',border:'1px solid var(--n-200)',boxShadow:'var(--sh-lg)'}}>
+              <div className="flex items-center justify-between p-5 sticky top-0 bg-white z-10" style={{borderBottom:'1px solid var(--n-200)'}}>
+                <h3 className="text-base font-bold" style={{color:'var(--n-900)'}}>Novas Medidas</h3>
+                <button onClick={() => setShowMeasModal(false)} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style={{background:'var(--n-100)'}}><X size={16} style={{color:'var(--n-500)'}} /></button>
+              </div>
+              <div className="p-5 space-y-6">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-1">
+                    <label className="text-[10px] font-bold" style={{color:'var(--n-600)'}}>Data</label>
+                    <input type="date" value={measDate} onChange={e => setMeasDate(e.target.value)} className="input-base w-full mt-1 text-xs" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold" style={{color:'var(--n-600)'}}>Peso (kg)</label>
+                    <input type="number" step="0.1" value={measWeight} onChange={e => setMeasWeight(Number(e.target.value))} className="input-base w-full mt-1" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold" style={{color:'var(--n-600)'}}>Altura (cm)</label>
+                    <input type="number" value={measHeight} onChange={e => setMeasHeight(Number(e.target.value))} className="input-base w-full mt-1" />
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-bold mb-3 flex items-center gap-2" style={{color:'var(--accent)'}}><div className="flex-1 h-px bg-n-100"></div>Perímetros (cm)<div className="flex-1 h-px bg-n-100"></div></h4>
+                  <div className="grid grid-cols-3 gap-3">
+                    {Object.keys(measValues).map(k => (
+                      <div key={k}>
+                        <label className="text-[10px] font-bold uppercase" style={{color:'var(--n-500)'}}>{k === 'chest' ? 'Peito' : k === 'waist' ? 'Cintura' : k === 'hip' ? 'Quadril' : k === 'arm' ? 'Braço' : k === 'thigh' ? 'Coxa' : 'Panturr.'}</label>
+                        <input type="number" step="0.1" value={measValues[k as keyof typeof measValues]} onChange={e => setMeasValues({...measValues, [k]: Number(e.target.value)})} className="input-base w-full mt-1" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-bold mb-3 flex items-center gap-2" style={{color:'var(--error)'}}><div className="flex-1 h-px bg-n-100"></div>Dobras (mm)<div className="flex-1 h-px bg-n-100"></div></h4>
+                  <div className="grid grid-cols-3 gap-3">
+                    {Object.keys(skinfolds).map(k => (
+                      <div key={k}>
+                        <label className="text-[10px] font-bold uppercase" style={{color:'var(--n-500)'}}>
+                          {k === 'triceps' ? 'Triceps' : k === 'biceps' ? 'Biceps' : k === 'subscapular' ? 'Subscap.' : k === 'suprailiac' ? 'Suprail.' : 'Abdom.'}
+                        </label>
+                        <input type="number" step="0.1" value={skinfolds[k as keyof typeof skinfolds]} onChange={e => setSkinfolds({...skinfolds, [k]: Number(e.target.value)})} className="input-base w-full mt-1" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+              <div className="flex gap-3 p-5 pt-0">
+                <button onClick={() => setShowMeasModal(false)} className="flex-1 py-2.5 rounded-lg text-sm font-medium" style={{border:'1px solid var(--n-200)',color:'var(--n-600)'}}>Cancelar</button>
+                <button onClick={handleAddMeas} disabled={saving} className="btn btn-primary flex-1 py-2.5 text-sm font-bold">{saving ? 'Salvando...' : 'Salvar'}</button>
               </div>
             </div>
           </div>
