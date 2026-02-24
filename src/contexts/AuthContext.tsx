@@ -91,6 +91,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let resolved = false;
 
+    // Força a busca imediata da sessão do localStorage ao montar
+    const initSession = async () => {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      if (s?.user) {
+        console.log('[Auth] Inicializando com sessão ativa:', s.user.id);
+        const profile = await fetchProfile(s.user.id);
+        if (mountedRef.current && profile) {
+          setCurrentUser(profileToUser(profile));
+        }
+        setSession(s);
+      }
+      
+      if (mountedRef.current && !resolved) {
+        resolved = true;
+        setLoading(false);
+      }
+    };
+
+    initSession();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, s) => {
         console.log('[Auth] State Change:', event, s?.user?.id);
@@ -118,7 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         // Finaliza o loading apenas na primeira vez que o estado é conhecido
-        if (!resolved) {
+        if (mountedRef.current && !resolved) {
           resolved = true;
           setLoading(false);
         }
