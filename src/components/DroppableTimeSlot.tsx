@@ -86,9 +86,15 @@ const DroppableTimeSlot: React.FC<DroppableTimeSlotProps> = ({
         ))}
 
         {!hasAppointments && (
-          <div className={`flex items-center gap-1.5 ${isOver ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
-            <Plus size={12} style={{color:'var(--accent)'}} />
-            <span className="text-xs font-medium" style={{color:'var(--n-500)'}}>Disponível</span>
+          <div
+            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-150 cursor-pointer ${isOver ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+            style={{
+              background: isOver ? 'var(--accent)' : 'var(--accent-light)',
+              border: '1.5px dashed var(--accent)',
+            }}
+          >
+            <Plus size={14} style={{color: isOver ? '#fff' : 'var(--accent)'}} />
+            <span className="text-xs font-semibold" style={{color: isOver ? '#fff' : 'var(--accent)'}}>Criar agendamento</span>
           </div>
         )}
       </div>
