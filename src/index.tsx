@@ -30,13 +30,19 @@ root.render(
   </React.StrictMode>
 );
 
+let refreshing = false;
+navigator.serviceWorker.addEventListener('controllerchange', () => {
+  if (refreshing) return;
+  refreshing = true;
+  window.location.reload();
+});
+
 serviceWorkerRegistration.register({
   onSuccess: () => console.log('[PWA] App disponível offline!'),
   onUpdate: (registration) => {
     const waitingWorker = registration.waiting;
     if (waitingWorker) {
       waitingWorker.postMessage({ type: 'SKIP_WAITING' });
-      window.location.reload();
     }
   },
 });
