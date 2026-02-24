@@ -1,21 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { CalendarDays } from 'lucide-react';
 import BottomNavigation from './components/BottomNavigation';
-import Schedule from './pages/Schedule';
-import Students from './pages/Students';
-import Evolution from './pages/Evolution';
-import UserPanel from './pages/UserPanel';
-import AdminPanel from './pages/AdminPanel';
-import Finance from './pages/Finance';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
 import ToastContainer from './components/ToastContainer';
 import InstallPrompt from './components/InstallPrompt';
 import OfflineBanner from './components/OfflineBanner';
 import { useToast } from './hooks/useToast';
 import { useAuth } from './contexts/AuthContext';
 import './App.css';
+
+// Lazy loading: cada página só é carregada quando necessária
+const Schedule     = lazy(() => import('./pages/Schedule'));
+const Students     = lazy(() => import('./pages/Students'));
+const Evolution    = lazy(() => import('./pages/Evolution'));
+const UserPanel    = lazy(() => import('./pages/UserPanel'));
+const AdminPanel   = lazy(() => import('./pages/AdminPanel'));
+const Finance      = lazy(() => import('./pages/Finance'));
+const Login        = lazy(() => import('./pages/Login'));
+const Register     = lazy(() => import('./pages/Register'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-40">
+    <div className="spinner" />
+  </div>
+);
 
 function App() {
   const [activeTab, setActiveTab] = useState('schedule');
@@ -71,19 +79,18 @@ function App() {
 
   if (!isAuthenticated) {
     return (
-      <>
-        {authScreen === 'login' && <Login />}
+      <Suspense fallback={<PageLoader />}>
+        {authScreen === 'login'    && <Login />}
         {authScreen === 'register' && <Register />}
-        {authScreen === 'forgot' && <ForgotPassword />}
+        {authScreen === 'forgot'   && <ForgotPassword />}
         <ToastContainer toasts={toasts} onClose={removeToast} />
-      </>
+      </Suspense>
     );
   }
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--n-100)' }}>
       <OfflineBanner />
-      {/* Top header — clean, white, minimal */}
       <header
         className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-3 max-w-lg mx-auto safe-area-pt"
         style={{ background: 'var(--n-0)', borderBottom: '1px solid var(--n-200)' }}
@@ -111,9 +118,11 @@ function App() {
         className="relative z-10 max-w-lg mx-auto overflow-y-auto"
         style={{ height: '100dvh', scrollBehavior: 'smooth', paddingTop: '60px', paddingBottom: '80px' }}
       >
-        <div key={animKey} className="animate-fade-in-up min-h-full">
-          {renderActiveTab()}
-        </div>
+        <Suspense fallback={<PageLoader />}>
+          <div key={animKey} className="animate-fade-in-up min-h-full">
+            {renderActiveTab()}
+          </div>
+        </Suspense>
       </main>
 
       <BottomNavigation

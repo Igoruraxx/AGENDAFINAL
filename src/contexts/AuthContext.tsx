@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { User, UserPlan, PLAN_LIMITS, PlanLimits } from '../types';
 import { supabase } from '../lib/supabase';
 import type { Session } from '@supabase/supabase-js';
@@ -62,13 +62,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [authScreen, setAuthScreen] = useState<AuthScreen>('login');
+  // Flag para garantir que o loading só seja finalizado uma vez
+  const initializedRef = useRef(false);
 
   const isAuthenticated = !!session;
   const planLimits = PLAN_LIMITS[currentUser.plan];
   const isPremium = currentUser.plan === 'premium';
   const isAdmin = currentUser.isAdmin;
 
-  // Fetch profile from Supabase
   const fetchProfile = useCallback(async (userId: string) => {
     const { data, error } = await supabase
       .from('profiles')
@@ -83,31 +84,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return data as Profile;
   }, []);
 
-  // Listen for auth state changes
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      if (s?.user) {
-        fetchProfile(s.user.id).then((profile) => {
-          if (profile) setCurrentUser(profileToUser(profile));
-          setLoading(false);
-        });
-      } else {
-        setLoading(false);
-      }
-    });
-
-    // Subscribe to auth changes
+    // Usar apenas onAuthStateChange que já emite INITIAL_SESSION na inicialização.
+    // Isso evita a race condition entre getSession() e onAuthStateChange.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, s) => {
         setSession(s);
         if (s?.user) {
           const profile = await fetchProfile(s.user.id);
           if (profile) setCurrentUser(profileToUser(profile));
-          setLoading(false);
         } else {
           setCurrentUser(EMPTY_USER);
+        }
+        // Garante que o loading termine apenas uma vez após a sessão inicial
+        if (!initializedRef.current) {
+          initializedRef.current = true;
           setLoading(false);
         }
       }
@@ -120,9 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!email || !password) {
       throw new Error('Email e senha são obrigatórios');
     }
-
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-
     if (error) {
       if (error.message.includes('Invalid login credentials')) {
         throw new Error('Email ou senha incorretos');
@@ -138,15 +127,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (password.length < 6) {
       throw new Error('Senha deve ter pelo menos 6 caracteres');
     }
-
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: { name: name.trim() },
-      },
+      options: { data: { name: name.trim() } },
     });
-
     if (error) {
       if (error.message.includes('already registered')) {
         throw new Error('Este email já está cadastrado');
@@ -156,17 +141,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const forgotPassword = useCallback(async (email: string) => {
-    if (!email) {
-      throw new Error('Email é obrigatório');
-    }
-
+    if (!email) throw new Error('Email é obrigatório');
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
-
-    if (error) {
-      throw new Error(error.message);
-    }
+    if (error) throw new Error(error.message);
   }, []);
 
   const logout = useCallback(async () => {
@@ -181,10 +160,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .from('profiles')
       .update({ plan: 'premium' })
       .eq('id', session.user.id);
-
-    if (!error) {
-      setCurrentUser(prev => ({ ...prev, plan: 'premium' as UserPlan }));
-    }
+    if (!error) setCurrentUser(prev => ({ ...prev, plan: 'premium' as UserPlan }));
   }, [session]);
 
   const downgradeToFree = useCallback(async () => {
@@ -193,16 +169,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .from('profiles')
       .update({ plan: 'free' })
       .eq('id', session.user.id);
-
-    if (!error) {
-      setCurrentUser(prev => ({ ...prev, plan: 'free' as UserPlan }));
-    }
+    if (!error) setCurrentUser(prev => ({ ...prev, plan: 'free' as UserPlan }));
   }, [session]);
 
   const updateUser = useCallback(async (updates: Partial<User>) => {
     if (!session?.user) return;
-
-    // Map User fields to Profile columns
     const profileUpdates: Record<string, unknown> = {};
     if (updates.name !== undefined) profileUpdates.name = updates.name;
     if (updates.email !== undefined) profileUpdates.email = updates.email;
@@ -213,19 +184,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       profileUpdates.notify_at_time = updates.notifications.notifyAtTime;
       profileUpdates.daily_list_time = updates.notifications.dailyListTime;
     }
-
     if (Object.keys(profileUpdates).length > 0) {
       const { error } = await supabase
         .from('profiles')
         .update(profileUpdates)
         .eq('id', session.user.id);
-
       if (error) {
         console.error('[Auth] Erro ao atualizar perfil:', error.message);
         return;
       }
     }
-
     setCurrentUser(prev => ({ ...prev, ...updates }));
   }, [session]);
 
