@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { User, UserPlan, PLAN_LIMITS, PlanLimits } from '../types';
 import { supabase } from '../lib/supabase';
+import { ensureStorageBuckets } from '../lib/setupStorage';
 import type { Session } from '@supabase/supabase-js';
 import type { Profile } from '../types/database';
 
@@ -62,6 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [authScreen, setAuthScreen] = useState<AuthScreen>('login');
+  const mountedRef = useRef(true);
 
   const isAuthenticated = !!session;
   const planLimits = PLAN_LIMITS[currentUser.plan];
@@ -69,17 +71,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAdmin = currentUser.isAdmin;
 
   // Busca o perfil e atualiza currentUser
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string): Promise<Profile | null> => {
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
-      if (!error && data) setCurrentUser(profileToUser(data as Profile));
-    } catch {
-      // silencioso — não bloqueia o fluxo
+      if (!error && data) {
+        return data as Profile;
+      }
+    } catch (e) {
+      console.error("Error fetching profile:", e);
     }
+    return null;
   }, []);
 
   // Efeito 1: onAuthStateChange — ÚNICA fonte de verdade da sessão
@@ -89,7 +94,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, s) => {
         setSession(s);
-        if (!s) {
+        if (s?.user) {
+          const profile = await fetchProfile(s.user.id);
+          if (mountedRef.current && profile) setCurrentUser(profileToUser(profile));
+          // Garante que os buckets de storage existem (silencioso)
+          ensureStorageBuckets();
+        } else {
           setCurrentUser(EMPTY_USER);
         }
         // Finaliza o loading apenas na primeira vez que o estado é conhecido
