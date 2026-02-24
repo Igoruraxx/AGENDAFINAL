@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { Plus, Search, Phone, Calendar, DollarSign, Check, X, Edit2, Trash2, Users, Crown, Lock, Copy, CalendarDays } from 'lucide-react';
+import { Plus, Search, Phone, Calendar, DollarSign, Check, X, Trash2, Users, Crown, Lock, Copy, CalendarDays } from 'lucide-react';
 import { Student } from '../types';
 import { useToast } from '../hooks/useToast';
 import { useFormValidation, commonValidations } from '../hooks/useFormValidation';
@@ -10,7 +10,7 @@ import PricingPlans from '../components/PricingPlans';
 import { addDays, startOfWeek, format } from 'date-fns';
 
 const Students: React.FC = () => {
-  const { students, addStudent, updateStudent, deleteStudent, loading: studentsLoading } = useStudents();
+  const { students, addStudent, updateStudent, deleteStudent } = useStudents();
 
   const [showForm, setShowForm] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);

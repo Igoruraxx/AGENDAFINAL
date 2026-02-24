@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Camera, Upload, Plus, TrendingUp, TrendingDown, ChevronDown, X, User, CalendarDays } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { EvolutionPhoto, Bioimpedance, Measurement, Student } from '../types';
+// types imported via hooks; explicit imports removed to avoid unused warnings
 import FeatureGate from '../components/FeatureGate';
 import { usePermissions } from '../hooks/usePermissions';
 import { useStudents } from '../hooks/useStudents';
@@ -17,8 +17,7 @@ const EvolutionContent: React.FC = () => {
   const [photoDate, setPhotoDate] = useState('');
   const [photoFiles, setPhotoFiles] = useState<{ front: string; side: string; back: string }>({ front: '', side: '', back: '' });
   const [bioImageViewer, setBioImageViewer] = useState<string | null>(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  // removed unused uploading state to satisfy lint
   const frontRef = useRef<HTMLInputElement>(null);
   const sideRef = useRef<HTMLInputElement>(null);
   const backRef = useRef<HTMLInputElement>(null);
@@ -56,24 +55,17 @@ const EvolutionContent: React.FC = () => {
   };
   const handleAddPhoto = async () => {
     if (!photoDate || !selectedStudentId) return;
-    
-    setUploadingPhoto(true);
-    
     try {
       await addEvoPhoto({
         studentId: selectedStudentId,
         date: photoDate,
       });
-      
-      setShowPhotoModal(false); 
-      setPhotoDate(''); 
+      setShowPhotoModal(false);
+      setPhotoDate('');
       setPhotoFiles({ front: '', side: '', back: '' });
     } catch (error) {
       console.error('Erro ao salvar fotos:', error);
       alert('Erro ao salvar fotos. Tente novamente.');
-    } finally {
-      setUploadingPhoto(false);
-      setUploadProgress({});
     }
   };
   const closePhotoModal = () => { setShowPhotoModal(false); setPhotoDate(''); setPhotoFiles({ front: '', side: '', back: '' }); };

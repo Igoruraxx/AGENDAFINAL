@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { DollarSign, TrendingUp, Users, Calendar, ChevronLeft, ChevronRight, CheckCircle2, Clock, BarChart2, ArrowUpRight, ArrowDownRight, MessageCircle, BadgeCheck, AlertTriangle } from 'lucide-react';
+import { DollarSign, TrendingUp, Users, Calendar, ChevronLeft, ChevronRight, CheckCircle2, Clock, ArrowUpRight, ArrowDownRight, MessageCircle, BadgeCheck, AlertTriangle } from 'lucide-react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isToday, isBefore, startOfDay, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Student, Appointment } from '../types';
@@ -9,7 +9,7 @@ import { useStudents } from '../hooks/useStudents';
 
 const DAY_MAP: Record<string, number> = { Domingo:0, Segunda:1, Terça:2, Quarta:3, Quinta:4, Sexta:5, Sábado:6 };
 const CUR = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const AVATAR_COLORS = ['from-blue-400 to-blue-600','from-purple-400 to-purple-600','from-green-400 to-green-600','from-orange-400 to-orange-600','from-pink-400 to-pink-600','from-indigo-400 to-indigo-600'];
+// avatar gradients removed (unused)
 
 function buildMonthAppointments(students: Student[], monthDate: Date, today: Date): Appointment[] {
   const days = eachDayOfInterval({ start: startOfMonth(monthDate), end: endOfMonth(monthDate) });
@@ -30,7 +30,7 @@ function buildMonthAppointments(students: Student[], monthDate: Date, today: Dat
 }
 
 interface PaymentStatus { paid: boolean; paidAt?: Date; dueDate: Date; }
-interface SummaryRow { student: Student; totalStu: number; doneStu: number; pendStu: number; earned: number; expected: number; idx: number; }
+interface SummaryRow { student: Student; totalStu: number; doneStu: number; pendStu: number; earned: number; expected: number; }
 
 const FinanceContent: React.FC = () => {
   const { students } = useStudents();
@@ -105,14 +105,14 @@ const FinanceContent: React.FC = () => {
   const completedApts = useMemo(() => monthApts.filter(a => !isBefore(today, startOfDay(a.date))), [monthApts, today]);
   const pendingApts   = useMemo(() => monthApts.filter(a =>  isBefore(today, startOfDay(a.date))), [monthApts, today]);
 
-  const summaries: SummaryRow[] = useMemo(() => students.map((student, idx) => {
+  const summaries: SummaryRow[] = useMemo(() => students.map((student) => {
     const stuApts  = monthApts.filter(a => a.studentId === student.id);
     const doneStu  = completedApts.filter(a => a.studentId === student.id).length;
     const pendStu  = pendingApts.filter(a => a.studentId === student.id).length;
     const totalStu = stuApts.length;
     const earned   = student.plan === 'monthly' ? (student.isActive ? student.value : 0) : doneStu * student.value;
     const expected = student.plan === 'monthly' ? (student.isActive ? student.value : 0) : (student.isActive ? totalStu * student.value : doneStu * student.value);
-    return { student, totalStu, doneStu, pendStu, earned, expected, idx };
+    return { student, totalStu, doneStu, pendStu, earned, expected };
   }), [students, monthApts, completedApts, pendingApts]);
 
   const totalExpected = summaries.reduce((s,r) => s+r.expected, 0);
@@ -387,7 +387,7 @@ const StudentsSection: React.FC<StudentsSectionProps> = ({summaries, paymentStat
 
 interface StudentCardProps { row: SummaryRow; paymentStatus: PaymentStatus; onTogglePaid: (id: string) => void; today: Date; inactive?: boolean; }
 const StudentCard: React.FC<StudentCardProps> = ({row, paymentStatus, onTogglePaid, today, inactive}) => {
-  const {student, totalStu, doneStu, pendStu, earned, expected, idx} = row;
+  const {student, totalStu, doneStu, pendStu, earned, expected} = row;
   const initials = student.name.split(' ').slice(0,2).map(n=>n[0]).join('').toUpperCase();
   const spct = expected > 0 ? Math.round((earned/expected)*100) : (student.plan==='monthly' ? 100 : 0);
 
