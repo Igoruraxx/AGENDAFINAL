@@ -526,19 +526,21 @@ const EvolutionContent: React.FC = () => {
         {/* Photo Modal */}
         {showPhotoModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
-            <div className="rounded-2xl w-full max-w-md" style={{background:'var(--n-0)',border:'1px solid var(--n-200)',boxShadow:'var(--sh-lg)'}}>
-              <div className="flex items-center justify-between p-5" style={{borderBottom:'1px solid var(--n-200)'}}>
+            <div className="rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden" style={{background: 'var(--n-0)', border: '1px solid var(--n-200)', boxShadow: 'var(--sh-lg)'}}>
+              <div className="flex items-center justify-between p-5 border-b" style={{borderColor: 'var(--n-200)'}}>
                 <div>
-                  <h3 className="text-base font-bold" style={{color:'var(--n-900)'}}>Adicionar Fotos</h3>
-                  <p className="text-xs mt-0.5" style={{color:'var(--n-500)'}}>Defina a data antes de enviar as fotos</p>
+                  <h3 className="text-base font-bold" style={{color: 'var(--n-900)'}}>Adicionar Fotos</h3>
+                  <p className="text-xs mt-0.5" style={{color: 'var(--n-500)'}}>Defina a data antes de enviar as fotos</p>
                 </div>
-                <button onClick={closePhotoModal} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style={{background:'var(--n-100)'}}><X size={16} style={{color:'var(--n-500)'}} /></button>
+                <button onClick={closePhotoModal} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style={{background: 'var(--n-100)'}}>
+                  <X size={16} style={{color: 'var(--n-500)'}} />
+                </button>
               </div>
-              <div className="p-5 space-y-4">
+              <div className="p-5 space-y-4 overflow-y-auto flex-1">
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{color:'var(--n-700)'}}>Data do registro <span style={{color:'var(--error)'}}>*</span></label>
+                  <label className="block text-xs font-semibold mb-1.5" style={{color: 'var(--n-700)'}}>Data do registro <span style={{color: 'var(--error)'}}>*</span></label>
                   <div className="relative">
-                    <CalendarDays size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{color:'var(--n-400)'}} />
+                    <CalendarDays size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{color: 'var(--n-400)'}} />
                     <input type="date" value={photoDate} onChange={e => setPhotoDate(e.target.value)} className="input-base w-full pl-9" />
                   </div>
                 </div>
@@ -549,7 +551,7 @@ const EvolutionContent: React.FC = () => {
                     { slot: 'back'  as const, label: 'Costas', ref: backRef,  upload: backUpload },
                   ]).map(({ slot, label, ref, upload }) => (
                     <div key={slot}>
-                      <div className="text-xs font-medium mb-1.5 text-center" style={{color:'var(--n-500)'}}>{label}</div>
+                      <div className="text-xs font-medium mb-1.5 text-center" style={{color: 'var(--n-500)'}}>{label}</div>
                       <button
                         disabled={!photoDate}
                         onClick={() => ref.current?.click()}
@@ -563,31 +565,31 @@ const EvolutionContent: React.FC = () => {
                       >
                         {upload.compressing ? (
                           <div className="flex flex-col items-center gap-1.5">
-                            <div className="spinner" style={{width:20,height:20}} />
-                            <span className="text-[10px] font-medium" style={{color:'var(--accent)'}}>Comprimindo...</span>
+                            <div className="spinner" style={{width: 20, height: 20}} />
+                            <span className="text-[10px] font-medium" style={{color: 'var(--accent)'}}>Comprimindo...</span>
                           </div>
                         ) : upload.previewUrl ? (
                           <>
                             <img src={upload.previewUrl} alt={label} className="w-full h-full object-cover" />
-                            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{background:'var(--accent)'}}>
+                            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{background: 'var(--accent)'}}>
                               <CheckCircle2 size={12} className="text-white" />
                             </div>
                             <div className="absolute bottom-1.5 left-1.5 right-1.5 text-center">
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{background:'rgba(0,0,0,0.5)',color:'#fff'}}>
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{background: 'rgba(0,0,0,0.5)', color: '#fff'}}>
                                 {upload.file ? `${Math.round(upload.file.size / 1024)}KB` : ''}
                               </span>
                             </div>
                           </>
                         ) : (
                           <>
-                            <Camera size={20} style={{color:'var(--n-400)'}} />
-                            <span className="text-[10px] font-medium" style={{color:'var(--n-400)'}}>
+                            <Camera size={20} style={{color: 'var(--n-400)'}} />
+                            <span className="text-[10px] font-medium" style={{color: 'var(--n-400)'}}>
                               {photoDate ? 'Abrir Galeria' : 'Data primeiro'}
                             </span>
                           </>
                         )}
                       </button>
-                      {upload.error && <p className="text-[10px] mt-1 text-center" style={{color:'var(--error)'}}>{upload.error}</p>}
+                      {upload.error && <p className="text-[10px] mt-1 text-center" style={{color: 'var(--error)'}}>{upload.error}</p>}
                       <input
                         ref={ref}
                         type="file"
@@ -598,10 +600,10 @@ const EvolutionContent: React.FC = () => {
                     </div>
                   ))}
                 </div>
-                {!photoDate && <p className="text-xs rounded-lg px-3 py-2" style={{color:'var(--warning)',background:'var(--warning-light)'}}>Insira a data do registro para habilitar o envio de fotos.</p>}
+                {!photoDate && <p className="text-xs rounded-lg px-3 py-2" style={{color: 'var(--warning)', background: 'var(--warning-light)'}}>Insira a data do registro para habilitar o envio de fotos.</p>}
               </div>
-              <div className="flex gap-3 p-5 pt-0">
-                <button onClick={closePhotoModal} className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors" style={{border:'1px solid var(--n-200)',color:'var(--n-600)'}}>Cancelar</button>
+              <div className="flex gap-3 p-5 border-t bg-white" style={{borderColor: 'var(--n-200)'}}>
+                <button onClick={closePhotoModal} className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors" style={{border: '1px solid var(--n-200)', color: 'var(--n-600)'}}>Cancelar</button>
                 <button
                   onClick={handleAddPhoto}
                   disabled={saving
@@ -623,53 +625,47 @@ const EvolutionContent: React.FC = () => {
 
         {/* Bioimpedance Modal */}
         {showBioModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
-            <div className="rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" style={{background:'var(--n-0)',border:'1px solid var(--n-200)',boxShadow:'var(--sh-lg)'}}>
-              <div className="flex items-center justify-between p-5 sticky top-0 bg-white z-10" style={{borderBottom:'1px solid var(--n-200)'}}>
-                <h3 className="text-base font-bold" style={{color:'var(--n-900)'}}>{editingBioId ? 'Editar Bioimpedância' : 'Nova Bioimpedância'}</h3>
-                <button onClick={closeBioModal} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style={{background:'var(--n-100)'}}><X size={16} style={{color:'var(--n-500)'}} /></button>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-8" style={{background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)'}}>
+            <div className="rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden" style={{background: 'var(--n-0)', border: '1px solid var(--n-200)', boxShadow: 'var(--sh-lg)'}}>
+              {/* Header Fixo */}
+              <div className="flex items-center justify-between p-5 border-b" style={{borderColor: 'var(--n-200)'}}>
+                <h3 className="text-base font-bold" style={{color: 'var(--n-900)'}}>{editingBioId ? 'Editar Bioimpedância' : 'Nova Bioimpedância'}</h3>
+                <button onClick={closeBioModal} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style={{background: 'var(--n-100)'}}>
+                  <X size={16} style={{color: 'var(--n-500)'}} />
+                </button>
               </div>
-              <div className="p-5 space-y-4">
+
+              {/* Conteúdo com Scroll */}
+              <div className="p-5 space-y-4 overflow-y-auto flex-1">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-semibold" style={{color:'var(--n-600)'}}>Data</label>
+                    <label className="text-xs font-semibold" style={{color: 'var(--n-600)'}}>Data</label>
                     <input type="date" value={bioDate} onChange={e => setBioDate(e.target.value)} className="input-base w-full mt-1" />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold" style={{color:'var(--n-600)'}}>Imagem Exame</label>
+                    <label className="text-xs font-semibold" style={{color: 'var(--n-600)'}}>Imagem Exame</label>
                     <button
                       onClick={() => bioFileRef.current?.click()}
                       className="input-base w-full mt-1 truncate text-left text-xs flex items-center gap-2"
                     >
-                      <Upload size={13} style={{color:'var(--n-400)'}} />
+                      <Upload size={13} style={{color: 'var(--n-400)'}} />
                       <span className="truncate">{bioUpload.file ? bioUpload.file.name : 'Abrir Galeria...'}</span>
                     </button>
-                    <input
-                      ref={bioFileRef}
-                      type="file"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={e => bioUpload.setFile(e.target.files?.[0])}
-                    />
+                    <input ref={bioFileRef} type="file" className="hidden" accept="image/*" onChange={e => bioUpload.setFile(e.target.files?.[0])} />
                   </div>
                 </div>
 
-                {/* Preview da imagem de bioimpedância */}
                 {bioUpload.previewUrl && (
-                  <div className="relative rounded-xl overflow-hidden" style={{border:'1px solid var(--n-200)'}}>
-                    <img src={bioUpload.previewUrl} alt="Preview bioimpedância" className="w-full max-h-48 object-contain" style={{background:'var(--n-50)'}} />
-                    <button
-                      onClick={bioUpload.clear}
-                      className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
-                      style={{background:'rgba(0,0,0,0.5)'}}
-                    >
+                  <div className="relative rounded-xl overflow-hidden" style={{border: '1px solid var(--n-200)'}}>
+                    <img src={bioUpload.previewUrl} alt="Preview bioimpedância" className="w-full max-h-48 object-contain" style={{background: 'var(--n-50)'}} />
+                    <button onClick={bioUpload.clear} className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center" style={{background: 'rgba(0,0,0,0.5)'}}>
                       <X size={13} className="text-white" />
                     </button>
                   </div>
                 )}
-                {bioUpload.error && <p className="text-xs" style={{color:'var(--error)'}}>{bioUpload.error}</p>}
+                {bioUpload.error && <p className="text-xs" style={{color: 'var(--error)'}}>{bioUpload.error}</p>}
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 pb-2">
                   {[
                     { label: 'Peso (kg)', key: 'weight' },
                     { label: '% Gordura', key: 'bodyFatPct' },
@@ -680,14 +676,16 @@ const EvolutionContent: React.FC = () => {
                     { label: '% Mas. Musc', key: 'musclePct' },
                   ].map(field => (
                     <div key={field.key}>
-                      <label className="text-[10px] font-bold uppercase" style={{color:'var(--n-500)'}}>{field.label}</label>
+                      <label className="text-[10px] font-bold uppercase" style={{color: 'var(--n-500)'}}>{field.label}</label>
                       <input type="number" step="0.1" value={bioData[field.key as keyof typeof bioData]} onChange={e => setBioData({...bioData, [field.key]: Number(e.target.value)})} className="input-base w-full mt-1" />
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="flex gap-3 p-5 pt-0">
-                <button onClick={closeBioModal} className="flex-1 py-2.5 rounded-lg text-sm font-medium" style={{border:'1px solid var(--n-200)',color:'var(--n-600)'}}>Cancelar</button>
+
+              {/* Rodapé Fixo */}
+              <div className="flex gap-3 p-5 border-t bg-white" style={{borderColor: 'var(--n-200)'}}>
+                <button onClick={closeBioModal} className="flex-1 py-2.5 rounded-lg text-sm font-medium" style={{border: '1px solid var(--n-200)', color: 'var(--n-600)'}}>Cancelar</button>
                 <button onClick={handleAddBio} disabled={saving} className="btn btn-primary flex-1 py-2.5 text-sm font-bold">{saving ? 'Salvando...' : 'Salvar'}</button>
               </div>
             </div>
@@ -696,46 +694,51 @@ const EvolutionContent: React.FC = () => {
 
         {/* Measurements Modal */}
         {showMeasModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)'}}>
-            <div className="rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" style={{background:'var(--n-0)',border:'1px solid var(--n-200)',boxShadow:'var(--sh-lg)'}}>
-              <div className="flex items-center justify-between p-5 sticky top-0 bg-white z-10" style={{borderBottom:'1px solid var(--n-200)'}}>
-                <h3 className="text-base font-bold" style={{color:'var(--n-900)'}}>{editingMeasId ? 'Editar Medidas' : 'Novas Medidas'}</h3>
-                <button onClick={closeMeasModal} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style={{background:'var(--n-100)'}}><X size={16} style={{color:'var(--n-500)'}} /></button>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-8" style={{background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)'}}>
+            <div className="rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden" style={{background: 'var(--n-0)', border: '1px solid var(--n-200)', boxShadow: 'var(--sh-lg)'}}>
+              {/* Header Fixo */}
+              <div className="flex items-center justify-between p-5 border-b" style={{borderColor: 'var(--n-200)'}}>
+                <h3 className="text-base font-bold" style={{color: 'var(--n-900)'}}>{editingMeasId ? 'Editar Medidas' : 'Novas Medidas'}</h3>
+                <button onClick={closeMeasModal} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style={{background: 'var(--n-100)'}}>
+                  <X size={16} style={{color: 'var(--n-500)'}} />
+                </button>
               </div>
-              <div className="p-5 space-y-6">
+
+              {/* Conteúdo com Scroll */}
+              <div className="p-5 space-y-6 overflow-y-auto flex-1">
                 <div className="grid grid-cols-3 gap-3">
                   <div className="col-span-1">
-                    <label className="text-[10px] font-bold" style={{color:'var(--n-600)'}}>Data</label>
+                    <label className="text-[10px] font-bold" style={{color: 'var(--n-600)'}}>Data</label>
                     <input type="date" value={measDate} onChange={e => setMeasDate(e.target.value)} className="input-base w-full mt-1 text-xs" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold" style={{color:'var(--n-600)'}}>Peso (kg)</label>
+                    <label className="text-[10px] font-bold" style={{color: 'var(--n-600)'}}>Peso (kg)</label>
                     <input type="number" step="0.1" value={measWeight} onChange={e => setMeasWeight(Number(e.target.value))} className="input-base w-full mt-1" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold" style={{color:'var(--n-600)'}}>Altura (cm)</label>
+                    <label className="text-[10px] font-bold" style={{color: 'var(--n-600)'}}>Altura (cm)</label>
                     <input type="number" value={measHeight} onChange={e => setMeasHeight(Number(e.target.value))} className="input-base w-full mt-1" />
                   </div>
                 </div>
 
                 <div>
-                  <h4 className="text-xs font-bold mb-3 flex items-center gap-2" style={{color:'var(--accent)'}}><div className="flex-1 h-px bg-n-100"></div>Perímetros (cm)<div className="flex-1 h-px bg-n-100"></div></h4>
+                  <h4 className="text-xs font-bold mb-3 flex items-center gap-2" style={{color: 'var(--accent)'}}><div className="flex-1 h-px" style={{background: 'var(--n-100)'}}></div>Perímetros (cm)<div className="flex-1 h-px" style={{background: 'var(--n-100)'}}></div></h4>
                   <div className="grid grid-cols-3 gap-3">
                     {Object.keys(measValues).map(k => (
                       <div key={k}>
-                        <label className="text-[10px] font-bold uppercase" style={{color:'var(--n-500)'}}>{k === 'chest' ? 'Peito' : k === 'waist' ? 'Cintura' : k === 'hip' ? 'Quadril' : k === 'arm' ? 'Braço' : k === 'thigh' ? 'Coxa' : 'Panturr.'}</label>
+                        <label className="text-[10px] font-bold uppercase" style={{color: 'var(--n-500)'}}>{k === 'chest' ? 'Peito' : k === 'waist' ? 'Cintura' : k === 'hip' ? 'Quadril' : k === 'arm' ? 'Braço' : k === 'thigh' ? 'Coxa' : 'Panturr.'}</label>
                         <input type="number" step="0.1" value={measValues[k as keyof typeof measValues]} onChange={e => setMeasValues({...measValues, [k]: Number(e.target.value)})} className="input-base w-full mt-1" />
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div>
-                  <h4 className="text-xs font-bold mb-3 flex items-center gap-2" style={{color:'var(--error)'}}><div className="flex-1 h-px bg-n-100"></div>Dobras (mm)<div className="flex-1 h-px bg-n-100"></div></h4>
+                <div className="pb-2">
+                  <h4 className="text-xs font-bold mb-3 flex items-center gap-2" style={{color: 'var(--error)'}}><div className="flex-1 h-px" style={{background: 'var(--n-100)'}}></div>Dobras (mm)<div className="flex-1 h-px" style={{background: 'var(--n-100)'}}></div></h4>
                   <div className="grid grid-cols-3 gap-3">
                     {Object.keys(skinfolds).map(k => (
                       <div key={k}>
-                        <label className="text-[10px] font-bold uppercase" style={{color:'var(--n-500)'}}>
+                        <label className="text-[10px] font-bold uppercase" style={{color: 'var(--n-500)'}}>
                           {k === 'triceps' ? 'Triceps' : k === 'biceps' ? 'Biceps' : k === 'subscapular' ? 'Subscap.' : k === 'suprailiac' ? 'Suprail.' : 'Abdom.'}
                         </label>
                         <input type="number" step="0.1" value={skinfolds[k as keyof typeof skinfolds]} onChange={e => setSkinfolds({...skinfolds, [k]: Number(e.target.value)})} className="input-base w-full mt-1" />
@@ -743,10 +746,11 @@ const EvolutionContent: React.FC = () => {
                     ))}
                   </div>
                 </div>
-
               </div>
-              <div className="flex gap-3 p-5 pt-0">
-                <button onClick={() => setShowMeasModal(false)} className="flex-1 py-2.5 rounded-lg text-sm font-medium" style={{border:'1px solid var(--n-200)',color:'var(--n-600)'}}>Cancelar</button>
+
+              {/* Rodapé Fixo */}
+              <div className="flex gap-3 p-5 border-t bg-white" style={{borderColor: 'var(--n-200)'}}>
+                <button onClick={() => setShowMeasModal(false)} className="flex-1 py-2.5 rounded-lg text-sm font-medium" style={{border: '1px solid var(--n-200)', color: 'var(--n-600)'}}>Cancelar</button>
                 <button onClick={handleAddMeas} disabled={saving} className="btn btn-primary flex-1 py-2.5 text-sm font-bold">{saving ? 'Salvando...' : 'Salvar'}</button>
               </div>
             </div>

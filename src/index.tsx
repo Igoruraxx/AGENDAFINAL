@@ -37,15 +37,19 @@ navigator.serviceWorker.addEventListener('controllerchange', () => {
   window.location.reload();
 });
 
-serviceWorkerRegistration.register({
-  onSuccess: () => console.log('[PWA] App disponível offline!'),
-  onUpdate: (registration) => {
-    const waitingWorker = registration.waiting;
-    if (waitingWorker) {
-      waitingWorker.postMessage({ type: 'SKIP_WAITING' });
-    }
-  },
-});
+if (process.env.NODE_ENV === 'production') {
+  serviceWorkerRegistration.register({
+    onSuccess: () => console.log('[PWA] App disponível offline!'),
+    onUpdate: (registration) => {
+      const waitingWorker = registration.waiting;
+      if (waitingWorker) {
+        waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+      }
+    },
+  });
+} else {
+  console.log('[PWA] SW desativado em desenvolvimento para evitar cache antigo.');
+}
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))
