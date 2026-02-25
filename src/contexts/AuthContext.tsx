@@ -168,9 +168,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }, 4000);
 
+    // Re-validate session when the user returns to the tab after minimizing.
+    // Browsers suspend JS when backgrounded; this ensures the session is
+    // checked and refreshed when the tab becomes visible again.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        supabase.auth.getSession().then(async ({ data: { session: freshSession } }) => {
+          if (!mountedRef.current) return;
+          if (freshSession?.user) {
+            setSession(freshSession);
+            const profile = await fetchProfile(freshSession.user.id);
+            if (mountedRef.current && profile) {
+              setCurrentUser(profileToUser(profile));
+            }
+          }
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       clearTimeout(safetyTimeout);
       subscription.unsubscribe();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []); // sem dependências — roda só na montagem
 
