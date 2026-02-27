@@ -40,11 +40,38 @@ const DraggableAppointment: React.FC<DraggableAppointmentProps> = ({
   });
 
   const pointerMoved = useRef(false);
+  const startPos = useRef({ x: 0, y: 0 });
 
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-    opacity: isCurrentlyDragging ? 0.5 : 1,
+    zIndex: isCurrentlyDragging ? 100 : undefined,
   } : undefined;
+
+  // Esconder o card original enquanto arrasta (o DragOverlay mostra a prévia)
+  const styleWithDragging = isCurrentlyDragging ? { ...style, opacity: 0 } : style;
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    pointerMoved.current = false;
+    startPos.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!pointerMoved.current) {
+      const dist = Math.sqrt(
+        Math.pow(e.clientX - startPos.current.x, 2) + 
+        Math.pow(e.clientY - startPos.current.y, 2)
+      );
+      if (dist > 10) pointerMoved.current = true;
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!pointerMoved.current && onPress) {
+      e.preventDefault();
+      e.stopPropagation();
+      onPress(appointment);
+    }
+  };
 
   const muscles = appointment.muscleGroups || [];
 
@@ -72,7 +99,7 @@ const DraggableAppointment: React.FC<DraggableAppointmentProps> = ({
     : null;
 
   const cardStyle: React.CSSProperties = {
-    ...style,
+    ...styleWithDragging,
     background: 'var(--n-0)',
     border: '1px solid var(--n-200)',
     boxShadow: 'var(--sh-xs)',
@@ -84,9 +111,9 @@ const DraggableAppointment: React.FC<DraggableAppointmentProps> = ({
       style={cardStyle}
       {...listeners}
       {...attributes}
-      onPointerDown={() => { pointerMoved.current = false; }}
-      onPointerMove={() => { pointerMoved.current = true; }}
-      onPointerUp={() => { if (!pointerMoved.current && onPress) onPress(appointment); }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
       className={`
         relative ${isCompact ? 'px-2 py-1.5' : 'px-2.5 py-2'} rounded-lg mb-1 cursor-grab active:cursor-grabbing
         transition-all duration-150 touch-manipulation select-none

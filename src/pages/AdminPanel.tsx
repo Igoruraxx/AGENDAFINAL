@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
+import * as Dialog from '@radix-ui/react-dialog';
 import {
   Users,
   Shield,
@@ -40,80 +42,102 @@ const addDays = (dateStr: string, days: number): string => {
 };
 
 const daysRemaining = (endDate: string): number => {
-  const end = new Date(endDate);
+  if (!endDate) return 0;
+  // Considera o fim do dia de expiração (23:59:59)
+  const end = new Date(endDate + 'T23:59:59');
   const now = new Date();
-  return Math.max(0, Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+  const diff = end.getTime() - now.getTime();
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  return Math.max(0, days + 1); // +1 para contar o dia atual se ainda não acabou
 };
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
-// ── Mock Data ──
-const INITIAL_USERS: AdminUser[] = [
-  {
-    id: '1', name: 'João Personal', email: 'joao@personal.com', phone: '(11) 99999-0001',
-    plan: 'premium', status: 'active', students: 25, joinDate: '2024-01-10',
-    subscription: {
-      plan: 'premium', status: 'active', startDate: '2025-01-10', endDate: '2026-07-10', origin: 'paid',
-      history: [
-        { id: 'h1', plan: 'premium', origin: 'paid', startDate: '2025-01-10', endDate: '2025-07-10', durationDays: 180, addedBy: 'Admin', note: 'Primeira assinatura' },
-        { id: 'h2', plan: 'premium', origin: 'courtesy', startDate: '2025-07-10', endDate: '2025-08-10', durationDays: 30, addedBy: 'Admin', note: 'Cortesia fidelidade' },
-        { id: 'h3', plan: 'premium', origin: 'paid', startDate: '2025-08-10', endDate: '2026-07-10', durationDays: 334, addedBy: 'Sistema', note: 'Renovação anual' },
-      ],
-    },
-  },
-  {
-    id: '2', name: 'Maria Trainer', email: 'maria@trainer.com', phone: '(11) 99999-0002',
-    plan: 'free', status: 'active', students: 3, joinDate: '2024-03-22',
-    subscription: {
-      plan: 'free', status: 'active', startDate: '2024-03-22', endDate: '', origin: 'courtesy',
-      history: [
-        { id: 'h4', plan: 'free', origin: 'courtesy', startDate: '2024-03-22', endDate: '', durationDays: 0, addedBy: 'Sistema', note: 'Cadastro gratuito' },
-      ],
-    },
-  },
-  {
-    id: '3', name: 'Pedro Fit', email: 'pedro@fit.com', phone: '(11) 99999-0003',
-    plan: 'premium', status: 'active', students: 12, joinDate: '2024-06-01',
-    subscription: {
-      plan: 'premium', status: 'active', startDate: '2025-06-01', endDate: '2025-09-01', origin: 'paid',
-      history: [
-        { id: 'h5', plan: 'premium', origin: 'paid', startDate: '2025-06-01', endDate: '2025-09-01', durationDays: 90, addedBy: 'Admin', note: 'Plano trimestral' },
-      ],
-    },
-  },
-  {
-    id: '4', name: 'Ana Health', email: 'ana@health.com', phone: '(11) 99999-0004',
-    plan: 'premium', status: 'active', students: 40, joinDate: '2024-02-15',
-    subscription: {
-      plan: 'premium', status: 'active', startDate: '2024-12-01', endDate: '2025-12-01', origin: 'courtesy',
-      history: [
-        { id: 'h6', plan: 'premium', origin: 'courtesy', startDate: '2024-12-01', endDate: '2025-06-01', durationDays: 180, addedBy: 'Admin', note: 'Parceria academia X' },
-        { id: 'h7', plan: 'premium', origin: 'paid', startDate: '2025-06-01', endDate: '2025-12-01', durationDays: 180, addedBy: 'Sistema', note: 'Renovação semestral' },
-      ],
-    },
-  },
-  {
-    id: '5', name: 'Carlos Gym', email: 'carlos@gym.com',
-    plan: 'free', status: 'inactive', students: 0, joinDate: '2025-01-20',
-    subscription: {
-      plan: 'free', status: 'expired', startDate: '2025-01-20', endDate: '', origin: 'courtesy',
-      history: [
-        { id: 'h8', plan: 'premium', origin: 'courtesy', startDate: '2025-01-20', endDate: '2025-02-20', durationDays: 30, addedBy: 'Admin', note: 'Período de teste' },
-      ],
-    },
-  },
-];
+// Mock Data removed - using Supabase
 
 // ══════════════════════════════════════════════
 // ADMIN PANEL
 // ══════════════════════════════════════════════
 
 const AdminPanel: React.FC = () => {
-  const [users, setUsers] = useState<AdminUser[]>(INITIAL_USERS);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPlan, setFilterPlan] = useState<'all' | 'free' | 'premium'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+
+  const [upgradeNote, setUpgradeNote] = useState('');
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Busca perfis
+      const { data: profiles, error: pError } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (pError) throw pError;
+
+      // Busca contagem de alunos por treinador (tenta de forma resiliente)
+      let studentCounts: Record<string, number> = {};
+      try {
+        const { data: sData, error: sError } = await supabase
+          .from('students')
+          .select('user_id');
+
+        if (!sError && sData) {
+          studentCounts = sData.reduce((acc: any, curr: any) => {
+            acc[curr.user_id] = (acc[curr.user_id] || 0) + 1;
+            return acc;
+          }, {});
+        } else if (sError) {
+          console.warn('[AdminPanel] Falha ao contar alunos:', sError.message);
+        }
+      } catch (sErr) {
+        console.warn('[AdminPanel] Erro na query de alunos:', sErr);
+      }
+
+      const mappedUsers: AdminUser[] = (profiles || []).map((p: any) => {
+        const joinStr = (p.created_at || new Date().toISOString()).split('T')[0];
+        const subEndDate = p.subscription_end_date || '';
+        // Expira apenas após o fim do dia (23:59:59)
+        const isExpired = subEndDate ? new Date(subEndDate + 'T23:59:59') < new Date() : false;
+        
+        return {
+          id: p.id,
+          name: p.name || 'Sem nome',
+          email: p.email || 'Sem email',
+          phone: p.phone || '',
+          plan: p.plan || 'free',
+          status: isExpired ? 'inactive' : 'active',
+          students: studentCounts[p.id] || 0,
+          joinDate: joinStr,
+          subscription: {
+            plan: p.plan || 'free',
+            status: isExpired ? 'expired' : 'active',
+            startDate: joinStr,
+            endDate: subEndDate,
+            origin: (p.subscription_origin as PlanOrigin) || 'trial',
+            history: Array.isArray(p.subscription_history) ? p.subscription_history : [],
+          }
+        };
+      });
+
+      console.log(`[AdminPanel] ${mappedUsers.length} usuários carregados.`);
+      setUsers(mappedUsers);
+    } catch (err: any) {
+      console.error('[AdminPanel] Erro fatal no carregamento:', err);
+      showToast(err.message || 'Erro ao carregar usuários', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   // Modal states
   const [showAddTimeModal, setShowAddTimeModal] = useState(false);
@@ -129,7 +153,6 @@ const AdminPanel: React.FC = () => {
   const [removeNote, setRemoveNote] = useState('');
   const [upgradeOrigin, setUpgradeOrigin] = useState<PlanOrigin>('paid');
   const [upgradeDays, setUpgradeDays] = useState(30);
-  const [upgradeNote, setUpgradeNote] = useState('');
 
   // Toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
@@ -151,45 +174,76 @@ const AdminPanel: React.FC = () => {
     });
   }, [users, searchTerm, filterPlan, filterStatus]);
 
-  const stats = useMemo(() => ({
-    total: users.length,
-    active: users.filter(u => u.status === 'active').length,
-    premium: users.filter(u => u.plan === 'premium').length,
-    free: users.filter(u => u.plan === 'free').length,
-    paidPlans: users.reduce((acc, u) => acc + u.subscription.history.filter(h => h.origin === 'paid').length, 0),
-    courtesyPlans: users.reduce((acc, u) => acc + u.subscription.history.filter(h => h.origin === 'courtesy').length, 0),
-  }), [users]);
+  const stats = useMemo(() => {
+    // Garantia de que users seja array
+    const uList = users || [];
+    return {
+      total: uList.length,
+      active: uList.filter(u => u.status === 'active').length,
+      premium: uList.filter(u => u.plan === 'premium').length,
+      free: uList.filter(u => u.plan === 'free').length,
+      paidPlans: uList.reduce((acc, u) => 
+        acc + (u.subscription?.history?.filter(h => h.origin === 'paid').length || 0)
+      , 0),
+      trialPlans: uList.reduce((acc, u) => 
+        acc + (u.subscription?.history?.filter(h => h.origin === 'trial').length || 0)
+      , 0),
+      courtesyPlans: uList.reduce((acc, u) => 
+        acc + (u.subscription?.history?.filter(h => h.origin === 'courtesy').length || 0)
+      , 0),
+    };
+  }, [users]);
 
   // ── Actions ──
   const handleAddTime = () => {
     if (!selectedUser || addDaysAmount <= 0) return;
-    setUsers(prev => prev.map(u => {
-      if (u.id !== selectedUser.id) return u;
-      const currentEnd = u.subscription.endDate || todayStr();
-      const baseDate = new Date(currentEnd) > new Date() ? currentEnd : todayStr();
-      const newEnd = addDays(baseDate, addDaysAmount);
-      const newEntry: PlanHistoryEntry = {
-        id: `h${Date.now()}`,
-        plan: u.subscription.plan,
-        origin: addOrigin,
-        startDate: baseDate,
-        endDate: newEnd,
-        durationDays: addDaysAmount,
-        addedBy: 'Admin',
-        note: addNote || `+${addDaysAmount} dias (${addOrigin === 'paid' ? 'pago' : 'cortesia'})`,
-      };
-      return {
-        ...u,
-        subscription: {
-          ...u.subscription,
-          endDate: newEnd,
-          status: 'active' as const,
-          history: [...u.subscription.history, newEntry],
-        },
-        status: 'active' as const,
-      };
-    }));
-    showToast(`+${addDaysAmount} dias adicionados para ${selectedUser.name}`);
+    const currentEnd = selectedUser.subscription.endDate || todayStr();
+    const baseDate = new Date(currentEnd) > new Date() ? currentEnd : todayStr();
+    const newEnd = addDays(baseDate, addDaysAmount);
+    
+    const newEntry: PlanHistoryEntry = {
+      id: `h${Date.now()}`,
+      plan: selectedUser.subscription.plan,
+      origin: addOrigin,
+      startDate: baseDate,
+      endDate: newEnd,
+      durationDays: addDaysAmount,
+      addedBy: 'Admin',
+      note: addNote || `+${addDaysAmount} dias (${addOrigin === 'paid' ? 'pago' : addOrigin === 'trial' ? 'trial' : 'cortesia'})`,
+    };
+
+    const newHistory = [...selectedUser.subscription.history, newEntry];
+
+    // Persistir no Supabase
+    supabase.from('profiles').update({
+      subscription_end_date: newEnd,
+      subscription_origin: addOrigin,
+      subscription_history: newHistory as any,
+      plan: 'premium'
+    }).eq('id', selectedUser.id).then(({ error }) => {
+      if (error) {
+        showToast('Erro ao salvar no banco: ' + error.message, 'error');
+      } else {
+        setUsers(prev => prev.map(u => {
+          if (u.id !== selectedUser.id) return u;
+          return {
+            ...u,
+            plan: 'premium',
+            subscription: {
+              ...u.subscription,
+              plan: 'premium',
+              endDate: newEnd,
+              status: 'active' as const,
+              origin: addOrigin,
+              history: newHistory,
+            },
+            status: 'active' as const,
+          };
+        }));
+        showToast(`+${addDaysAmount} dias adicionados para ${selectedUser.name}`);
+      }
+    });
+
     setShowAddTimeModal(false);
     setAddDaysAmount(30);
     setAddNote('');
@@ -197,35 +251,51 @@ const AdminPanel: React.FC = () => {
 
   const handleRemoveTime = () => {
     if (!selectedUser || removeDaysAmount <= 0) return;
-    setUsers(prev => prev.map(u => {
-      if (u.id !== selectedUser.id) return u;
-      const currentEnd = u.subscription.endDate || todayStr();
-      const newEnd = addDays(currentEnd, -removeDaysAmount);
-      const isExpired = new Date(newEnd) <= new Date();
-      const newEntry: PlanHistoryEntry = {
-        id: `h${Date.now()}`,
-        plan: u.subscription.plan,
-        origin: 'courtesy',
-        startDate: todayStr(),
-        endDate: newEnd,
-        durationDays: -removeDaysAmount,
-        addedBy: 'Admin',
-        note: removeNote || `-${removeDaysAmount} dias removidos`,
-      };
-      return {
-        ...u,
-        plan: isExpired ? 'free' as UserPlan : u.plan,
-        subscription: {
-          ...u.subscription,
-          plan: isExpired ? 'free' as UserPlan : u.subscription.plan,
-          endDate: newEnd,
-          status: isExpired ? 'expired' as const : u.subscription.status,
-          history: [...u.subscription.history, newEntry],
-        },
-        status: isExpired ? 'inactive' as const : u.status,
-      };
-    }));
-    showToast(`-${removeDaysAmount} dias removidos de ${selectedUser.name}`, 'warning');
+    const currentEnd = selectedUser.subscription.endDate || todayStr();
+    const newEnd = addDays(currentEnd, -removeDaysAmount);
+    const isExpired = new Date(newEnd) <= new Date();
+    
+    const newEntry: PlanHistoryEntry = {
+      id: `h${Date.now()}`,
+      plan: selectedUser.subscription.plan,
+      origin: selectedUser.subscription.origin,
+      startDate: todayStr(),
+      endDate: newEnd,
+      durationDays: -removeDaysAmount,
+      addedBy: 'Admin',
+      note: removeNote || `-${removeDaysAmount} dias removidos`,
+    };
+
+    const newHistory = [...selectedUser.subscription.history, newEntry];
+
+    // Persistir no Supabase
+    supabase.from('profiles').update({
+      subscription_end_date: newEnd,
+      subscription_history: newHistory as any,
+      plan: isExpired ? 'free' : selectedUser.plan
+    }).eq('id', selectedUser.id).then(({ error }) => {
+      if (error) {
+        showToast('Erro ao salvar no banco: ' + error.message, 'error');
+      } else {
+        setUsers(prev => prev.map(u => {
+          if (u.id !== selectedUser.id) return u;
+          return {
+            ...u,
+            plan: isExpired ? 'free' as UserPlan : u.plan,
+            subscription: {
+              ...u.subscription,
+              plan: isExpired ? 'free' as UserPlan : u.subscription.plan,
+              endDate: newEnd,
+              status: isExpired ? 'expired' as const : u.subscription.status,
+              history: newHistory,
+            },
+            status: isExpired ? 'inactive' as const : u.status,
+          };
+        }));
+        showToast(`-${removeDaysAmount} dias removidos de ${selectedUser.name}`, 'warning');
+      }
+    });
+
     setShowRemoveTimeModal(false);
     setRemoveDaysAmount(7);
     setRemoveNote('');
@@ -297,32 +367,36 @@ const AdminPanel: React.FC = () => {
     showToast(`${user?.name} rebaixado para Free`, 'warning');
   };
 
-  // ── Shared modal wrapper ──
-  const ModalWrapper: React.FC<{ children: React.ReactNode; onClose: () => void; title: string; icon: React.ReactNode }> = ({ children, onClose, title, icon }) => (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', animation: 'fadeInOverlay 200ms ease-out' }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div
-        className="relative w-full sm:max-w-md max-h-[92dvh] overflow-hidden flex flex-col rounded-t-2xl sm:rounded-2xl"
-        style={{ background: 'var(--n-0)', boxShadow: '0 -4px 32px rgba(0,0,0,0.15)', animation: 'slideUpSheet 300ms cubic-bezier(0.32,0.72,0,1)' }}
-      >
-        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
-          <div className="w-10 h-1 rounded-full" style={{ background: 'var(--n-300)' }} />
-        </div>
-        <div className="flex items-center gap-3 px-5 py-4" style={{ borderBottom: '1px solid var(--n-200)' }}>
-          {icon}
-          <h3 className="text-base font-bold flex-1" style={{ color: 'var(--n-900)' }}>{title}</h3>
-          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'var(--n-100)' }}>
-            <X size={15} style={{ color: 'var(--n-600)' }} />
-          </button>
-        </div>
-        <div className="overflow-y-auto flex-1 overscroll-contain p-5">
-          {children}
-        </div>
-      </div>
-    </div>
+  // ── Radix Modal Component ──
+  const AdminModal: React.FC<{
+    isOpen: boolean;
+    onOpenChange: (open: boolean) => void;
+    title: string;
+    icon: React.ReactNode;
+    children: React.ReactNode;
+  }> = ({ isOpen, onOpenChange, title, icon, children }) => (
+    <Dialog.Root open={isOpen} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay 
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm animate-fade-in"
+        />
+        <Dialog.Content 
+          className="fixed left-1/2 top-1/2 z-50 w-full sm:max-w-md -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-xl animate-in fade-in zoom-in-95 duration-200"
+          style={{ maxHeight: '92dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+        >
+          <div className="flex items-center gap-3 px-5 py-4 border-b border-n-200">
+            {icon}
+            <Dialog.Title className="text-base font-bold flex-1 text-n-900">{title}</Dialog.Title>
+            <Dialog.Close className="w-8 h-8 rounded-full flex items-center justify-center bg-n-100 hover:bg-n-200 transition-colors">
+              <X size={15} className="text-n-600" />
+            </Dialog.Close>
+          </div>
+          <div className="overflow-y-auto flex-1 p-5 overscroll-contain">
+            {children}
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 
   // ═══════════════════
@@ -332,8 +406,9 @@ const AdminPanel: React.FC = () => {
     if (!selectedUser) return null;
     const sub = selectedUser.subscription;
     const remaining = sub.endDate ? daysRemaining(sub.endDate) : null;
-    const isExpired = sub.endDate ? new Date(sub.endDate) <= new Date() : false;
+    const isExpired = sub.endDate ? new Date(sub.endDate + 'T23:59:59') < new Date() : false;
     const paidEntries = sub.history.filter(h => h.origin === 'paid');
+    const trialEntries = sub.history.filter(h => h.origin === 'trial');
     const courtesyEntries = sub.history.filter(h => h.origin === 'courtesy');
 
     return (
@@ -416,11 +491,11 @@ const AdminPanel: React.FC = () => {
                 </div>
                 <div className="rounded-lg p-3" style={{ background: 'var(--n-50)', border: '1px solid var(--n-100)' }}>
                   <div className="flex items-center gap-1.5 mb-1">
-                    {sub.origin === 'paid' ? <CreditCard size={12} style={{ color: 'var(--n-400)' }} /> : <Gift size={12} style={{ color: 'var(--n-400)' }} />}
+                    {sub.origin === 'paid' ? <CreditCard size={12} style={{ color: 'var(--n-400)' }} /> : sub.origin === 'trial' ? <Clock size={12} style={{ color: 'var(--n-400)' }} /> : <Gift size={12} style={{ color: 'var(--n-400)' }} />}
                     <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--n-400)' }}>Origem</span>
                   </div>
-                  <span className="text-sm font-bold" style={{ color: sub.origin === 'paid' ? 'var(--success)' : '#7c3aed' }}>
-                    {sub.origin === 'paid' ? 'Pago' : 'Cortesia'}
+                  <span className="text-sm font-bold" style={{ color: sub.origin === 'paid' ? 'var(--success)' : sub.origin === 'trial' ? 'var(--accent)' : '#7c3aed' }}>
+                    {sub.origin === 'paid' ? 'Pago' : sub.origin === 'trial' ? 'Trial' : 'Cortesia'}
                   </span>
                 </div>
               </div>
@@ -501,7 +576,7 @@ const AdminPanel: React.FC = () => {
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-bold" style={{ color: 'var(--n-900)' }}>Histórico de Planos</div>
                 <div className="text-xs" style={{ color: 'var(--n-500)' }}>
-                  {paidEntries.length} pago{paidEntries.length !== 1 ? 's' : ''} · {courtesyEntries.length} cortesia{courtesyEntries.length !== 1 ? 's' : ''}
+                  {paidEntries.length} pago{paidEntries.length !== 1 ? 's' : ''} · {trialEntries.length} trial · {courtesyEntries.length} cortesia{courtesyEntries.length !== 1 ? 's' : ''}
                 </div>
               </div>
               <ChevronRight size={16} style={{ color: 'var(--n-400)' }} className="flex-shrink-0" />
@@ -511,10 +586,12 @@ const AdminPanel: React.FC = () => {
             {sub.history.slice(-3).reverse().map((entry) => (
               <div key={entry.id} className="flex items-center gap-3 px-4 py-2.5" style={{ borderTop: '1px solid var(--n-100)', background: 'var(--n-0)' }}>
                 <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{
-                  background: entry.origin === 'paid' ? 'var(--success-light)' : '#f3e8ff',
+                  background: entry.origin === 'paid' ? 'var(--success-light)' : entry.origin === 'trial' ? 'var(--accent-light)' : '#f3e8ff',
                 }}>
                   {entry.origin === 'paid'
                     ? <CreditCard size={11} style={{ color: 'var(--success)' }} />
+                    : entry.origin === 'trial'
+                    ? <Clock size={11} style={{ color: 'var(--accent)' }} />
                     : <Gift size={11} style={{ color: '#7c3aed' }} />}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -531,8 +608,12 @@ const AdminPanel: React.FC = () => {
         {/* ── MODALS ── */}
 
         {/* Add Time Modal */}
-        {showAddTimeModal && (
-          <ModalWrapper onClose={() => setShowAddTimeModal(false)} title="Adicionar Tempo" icon={<Plus size={18} style={{ color: 'var(--success)' }} />}>
+        <AdminModal 
+          isOpen={showAddTimeModal} 
+          onOpenChange={setShowAddTimeModal}
+          title="Adicionar Tempo"
+          icon={<Plus size={18} style={{ color: 'var(--success)' }} />}
+        >
             <div className="space-y-4">
               <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--n-50)', border: '1px solid var(--n-100)' }}>
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--n-0)' }}>
@@ -608,12 +689,15 @@ const AdminPanel: React.FC = () => {
                 <Plus size={16} /> Confirmar +{addDaysAmount} dias
               </button>
             </div>
-          </ModalWrapper>
-        )}
+          </AdminModal>
 
         {/* Remove Time Modal */}
-        {showRemoveTimeModal && (
-          <ModalWrapper onClose={() => setShowRemoveTimeModal(false)} title="Remover Tempo" icon={<Minus size={18} style={{ color: 'var(--error)' }} />}>
+        <AdminModal
+          isOpen={showRemoveTimeModal}
+          onOpenChange={setShowRemoveTimeModal}
+          title="Remover Tempo"
+          icon={<Minus size={18} style={{ color: 'var(--error)' }} />}
+        >
             <div className="space-y-4">
               <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--n-50)', border: '1px solid var(--n-100)' }}>
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--n-0)' }}>
@@ -680,12 +764,15 @@ const AdminPanel: React.FC = () => {
                 <Minus size={16} /> Confirmar -{removeDaysAmount} dias
               </button>
             </div>
-          </ModalWrapper>
-        )}
+          </AdminModal>
 
         {/* Upgrade Modal */}
-        {showUpgradeModal && (
-          <ModalWrapper onClose={() => setShowUpgradeModal(false)} title="Upgrade para Premium" icon={<ArrowUpCircle size={18} style={{ color: '#7c3aed' }} />}>
+        <AdminModal
+          isOpen={showUpgradeModal}
+          onOpenChange={setShowUpgradeModal}
+          title="Upgrade para Premium"
+          icon={<ArrowUpCircle size={18} style={{ color: '#7c3aed' }} />}
+        >
             <div className="space-y-4">
               <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: '#f3e8ff', border: '1px solid #e9d5ff' }}>
                 <Crown size={20} style={{ color: '#7c3aed' }} />
@@ -758,73 +845,75 @@ const AdminPanel: React.FC = () => {
                 <Crown size={16} className="inline mr-2" /> Ativar Premium
               </button>
             </div>
-          </ModalWrapper>
-        )}
+          </AdminModal>
 
         {/* History Modal */}
-        {showHistoryModal && (
-          <ModalWrapper onClose={() => setShowHistoryModal(false)} title="Histórico de Planos" icon={<History size={18} style={{ color: 'var(--accent)' }} />}>
-            <div className="space-y-3">
-              {/* Summary */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-lg p-3 text-center" style={{ background: 'var(--success-light)', border: '1px solid rgba(22,163,74,0.15)' }}>
-                  <div className="text-lg font-extrabold" style={{ color: 'var(--success)' }}>{paidEntries.length}</div>
-                  <div className="text-[10px] font-semibold uppercase" style={{ color: 'var(--success)' }}>Pagos</div>
-                </div>
-                <div className="rounded-lg p-3 text-center" style={{ background: '#f3e8ff', border: '1px solid #e9d5ff' }}>
-                  <div className="text-lg font-extrabold" style={{ color: '#7c3aed' }}>{courtesyEntries.length}</div>
-                  <div className="text-[10px] font-semibold uppercase" style={{ color: '#7c3aed' }}>Cortesias</div>
-                </div>
+        <AdminModal
+          isOpen={showHistoryModal}
+          onOpenChange={setShowHistoryModal}
+          title="Histórico de Planos"
+          icon={<History size={18} style={{ color: 'var(--accent)' }} />}
+        >
+          <div className="space-y-3">
+            {/* Summary */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg p-3 text-center" style={{ background: 'var(--success-light)', border: '1px solid rgba(22,163,74,0.15)' }}>
+                <div className="text-lg font-extrabold" style={{ color: 'var(--success)' }}>{paidEntries.length}</div>
+                <div className="text-[10px] font-semibold uppercase" style={{ color: 'var(--success)' }}>Pagos</div>
               </div>
-
-              {/* Timeline */}
-              <div className="space-y-0">
-                {[...sub.history].reverse().map((entry, i) => (
-                  <div key={entry.id} className="flex gap-3 relative">
-                    {/* Timeline line */}
-                    {i < sub.history.length - 1 && (
-                      <div className="absolute left-[13px] top-[28px] bottom-0 w-px" style={{ background: 'var(--n-200)' }} />
-                    )}
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 relative z-10" style={{
-                      background: entry.origin === 'paid' ? 'var(--success-light)' : '#f3e8ff',
-                      border: entry.origin === 'paid' ? '2px solid var(--success)' : '2px solid #7c3aed',
-                    }}>
-                      {entry.origin === 'paid'
-                        ? <CreditCard size={11} style={{ color: 'var(--success)' }} />
-                        : <Gift size={11} style={{ color: '#7c3aed' }} />}
-                    </div>
-                    <div className="flex-1 pb-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="text-sm font-semibold" style={{ color: 'var(--n-900)' }}>
-                            {entry.plan === 'premium' ? 'Premium' : 'Free'}
-                            <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{
-                              background: entry.origin === 'paid' ? 'var(--success-light)' : '#f3e8ff',
-                              color: entry.origin === 'paid' ? 'var(--success)' : '#7c3aed',
-                            }}>
-                              {entry.origin === 'paid' ? 'Pago' : 'Cortesia'}
-                            </span>
-                          </div>
-                          {entry.note && (
-                            <div className="text-xs mt-0.5" style={{ color: 'var(--n-500)' }}>{entry.note}</div>
-                          )}
-                        </div>
-                        <span className="text-[10px] font-medium flex-shrink-0 whitespace-nowrap" style={{ color: 'var(--n-400)' }}>
-                          {entry.durationDays > 0 ? `${entry.durationDays}d` : entry.durationDays < 0 ? `${entry.durationDays}d` : '—'}
-                        </span>
-                      </div>
-                      <div className="text-[10px] mt-1 flex items-center gap-1" style={{ color: 'var(--n-400)' }}>
-                        <Calendar size={9} />
-                        {fmt(entry.startDate)} → {entry.endDate ? fmt(entry.endDate) : '∞'}
-                        <span className="ml-1">· por {entry.addedBy}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="rounded-lg p-3 text-center" style={{ background: '#f3e8ff', border: '1px solid #e9d5ff' }}>
+                <div className="text-lg font-extrabold" style={{ color: '#7c3aed' }}>{courtesyEntries.length}</div>
+                <div className="text-[10px] font-semibold uppercase" style={{ color: '#7c3aed' }}>Cortesias</div>
               </div>
             </div>
-          </ModalWrapper>
-        )}
+
+            {/* Timeline */}
+            <div className="space-y-0">
+              {[...sub.history].reverse().map((entry, i) => (
+                <div key={entry.id} className="flex gap-3 relative">
+                  {/* Timeline line */}
+                  {i < sub.history.length - 1 && (
+                    <div className="absolute left-[13px] top-[28px] bottom-0 w-px" style={{ background: 'var(--n-200)' }} />
+                  )}
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 relative z-10" style={{
+                    background: entry.origin === 'paid' ? 'var(--success-light)' : '#f3e8ff',
+                    border: entry.origin === 'paid' ? '2px solid var(--success)' : '2px solid #7c3aed',
+                  }}>
+                    {entry.origin === 'paid'
+                      ? <CreditCard size={11} style={{ color: 'var(--success)' }} />
+                      : <Gift size={11} style={{ color: '#7c3aed' }} />}
+                  </div>
+                  <div className="flex-1 pb-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-semibold" style={{ color: 'var(--n-900)' }}>
+                          {entry.plan === 'premium' ? 'Premium' : 'Free'}
+                          <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{
+                            background: entry.origin === 'paid' ? 'var(--success-light)' : '#f3e8ff',
+                            color: entry.origin === 'paid' ? 'var(--success)' : '#7c3aed',
+                          }}>
+                            {entry.origin === 'paid' ? 'Pago' : 'Cortesia'}
+                          </span>
+                        </div>
+                        {entry.note && (
+                          <div className="text-xs mt-0.5" style={{ color: 'var(--n-500)' }}>{entry.note}</div>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-medium flex-shrink-0 whitespace-nowrap" style={{ color: 'var(--n-400)' }}>
+                        {entry.durationDays > 0 ? `${entry.durationDays}d` : entry.durationDays < 0 ? `${entry.durationDays}d` : '—'}
+                      </span>
+                    </div>
+                    <div className="text-[10px] mt-1 flex items-center gap-1" style={{ color: 'var(--n-400)' }}>
+                      <Calendar size={9} />
+                      {fmt(entry.startDate)} → {entry.endDate ? fmt(entry.endDate) : '∞'}
+                      <span className="ml-1">· por {entry.addedBy}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </AdminModal>
       </div>
     );
   };
@@ -918,7 +1007,7 @@ const AdminPanel: React.FC = () => {
           {filteredUsers.map((user) => {
             const remaining = user.subscription.endDate ? daysRemaining(user.subscription.endDate) : null;
             const isExpiring = remaining !== null && remaining <= 7 && remaining > 0;
-            const isExpired = user.subscription.endDate ? new Date(user.subscription.endDate) <= new Date() : false;
+            const isExpired = user.subscription.endDate ? new Date(user.subscription.endDate + 'T23:59:59') < new Date() : false;
             return (
               <button
                 key={user.id}
@@ -969,7 +1058,14 @@ const AdminPanel: React.FC = () => {
   // ═══════════════════
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--n-50)' }}>
-      {selectedUserId ? renderUserDetail() : renderUserList()}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+          <div className="w-12 h-12 border-4 border-slate-200 border-t-purple-500 rounded-full animate-spin" />
+          <p className="text-sm font-medium animate-pulse" style={{ color: 'var(--n-500)' }}>Carregando treinadores...</p>
+        </div>
+      ) : (
+        selectedUserId ? renderUserDetail() : renderUserList()
+      )}
 
       {/* Toast */}
       {toast && (

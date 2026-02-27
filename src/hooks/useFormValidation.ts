@@ -112,14 +112,15 @@ export const commonValidations = {
     pattern: validationPatterns.email,
   },
   value: {
-    required: true,
+    required: false,
     pattern: validationPatterns.money,
     custom: (value: string) => {
+      if (!value || value.trim() === '') return null;
       const numValue = parseFloat(value);
-      if (numValue <= 0) {
-        return 'Valor deve ser maior que zero';
+      if (numValue < 0) {
+        return 'Valor não pode ser negativo';
       }
-      if (numValue > 10000) {
+      if (numValue > 100000) {
         return 'Valor muito alto';
       }
       return null;

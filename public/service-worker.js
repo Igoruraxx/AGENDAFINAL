@@ -1,7 +1,7 @@
 /* eslint-disable no-restricted-globals */
 
-const CACHE_NAME = 'fitpro-v2';
-const RUNTIME_CACHE = 'fitpro-runtime-v2';
+const CACHE_NAME = 'fitpro-v3';
+const RUNTIME_CACHE = 'fitpro-runtime-v3';
 
 // Assets to precache on install
 const PRECACHE_URLS = [

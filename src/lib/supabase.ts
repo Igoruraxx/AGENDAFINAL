@@ -18,8 +18,10 @@ export const supabase = createClient(
   {
     auth: {
       autoRefreshToken: true,
-      persistSession: false,
+      persistSession: true,
       detectSessionInUrl: true,
+      storageKey: 'fitpro-auth-token',
+      storage: window.localStorage
     },
   }
 );

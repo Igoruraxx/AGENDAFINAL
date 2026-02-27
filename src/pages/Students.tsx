@@ -68,12 +68,15 @@ const Students: React.FC = () => {
     e.preventDefault();
     
     // Validation rules
-    const validationRules = {
+    const validationRules: any = {
       name: commonValidations.name,
       phone: commonValidations.phone,
       value: commonValidations.value,
-      weeklyFrequency: commonValidations.weeklyFrequency,
     };
+
+    if (!formData.isConsulting) {
+      validationRules.weeklyFrequency = commonValidations.weeklyFrequency;
+    }
 
     // Validate form
     const errors = validateForm(
@@ -97,15 +100,20 @@ const Students: React.FC = () => {
     try {
       const studentData = {
         name: formData.name || '',
-        phone: phoneMask.value,
-        plan: formData.plan as 'monthly' | 'session',
+        phone: phoneMask.getCleanPhone(),
+        plan: formData.plan as any,
         value: formData.value || 0,
         weeklyFrequency: formData.weeklyFrequency || 1,
         selectedDays: formData.selectedDays || [],
         selectedTimes: formData.selectedTimes || [],
         isConsulting: formData.isConsulting || false,
         isActive: formData.isActive !== false,
-        billingDay: Number(formData.billingDay) || 1,
+        billingDay: formData.plan === 'monthly' ? (Number(formData.billingDay) || 1) : null,
+        planDuration: formData.plan === 'long_term' 
+          ? ((formData as any).planDuration === 0 ? ((formData as any).customMonths || 1) : ((formData as any).planDuration || 3)) 
+          : null,
+        totalValue: formData.plan === 'long_term' ? ((formData as any).totalValue || 0) : null,
+        nextBillingDate: formData.plan === 'long_term' ? ((formData as any).nextBillingDate || null) : null,
       };
 
       if (editingStudent) {
@@ -121,6 +129,7 @@ const Students: React.FC = () => {
       setFormErrors({});
       resetForm();
     } catch (err: any) {
+      console.error('[handleSubmit] Erro ao salvar aluno:', err);
       error(err.message || 'Erro ao salvar aluno');
     } finally {
       setSaving(false);
@@ -261,7 +270,7 @@ const Students: React.FC = () => {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-lg font-extrabold tracking-tight" style={{color:'var(--n-900)'}}>Clientes</h1>
-            <p className="text-xs mt-0.5" style={{color:'var(--n-500)'}}>{activeCount} ativos · {students.length} cadastrados</p>
+            <p className="text-xs mt-0.5" style={{color:'var(--n-900)'}}>{activeCount} ativos · {students.length} cadastrados</p>
           </div>
           <button
             onClick={() => atLimit ? setShowPricing(true) : setShowForm(true)}
@@ -279,7 +288,7 @@ const Students: React.FC = () => {
           ].map((s) => (
             <div key={s.label} className="rounded-lg p-2.5 text-center" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
               <div className="text-base font-extrabold" style={{color:s.color}}>{s.value}</div>
-              <div className="text-xs" style={{color:'var(--n-500)'}}>{s.label}</div>
+              <div className="text-xs" style={{color:'var(--n-900)'}}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -307,7 +316,7 @@ const Students: React.FC = () => {
       {/* Search + Filters */}
       <div className="space-y-3 mb-4">
         <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2" size={16} style={{color:'var(--n-400)'}} />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2" size={16} style={{color:'var(--n-800)'}} />
           <input
             type="text"
             placeholder="Buscar por nome ou telefone..."
@@ -326,7 +335,7 @@ const Students: React.FC = () => {
                 className={`flex-1 px-2 py-2 rounded-md text-xs font-semibold transition-all touch-manipulation ${
                   filterStatus === s ? 'bg-white shadow-sm' : ''
                 }`}
-                style={{color: filterStatus === s ? 'var(--accent)' : 'var(--n-400)'}}
+                style={{color: filterStatus === s ? 'var(--accent)' : 'var(--n-800)'}}
               >
                 {s === 'all' ? 'Todos' : s === 'active' ? 'Ativos' : 'Inativos'}
               </button>
@@ -350,10 +359,10 @@ const Students: React.FC = () => {
         {filteredStudents.length === 0 && (
           <div className="text-center py-12">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{background:'var(--n-100)',border:'1px solid var(--n-200)'}}>
-              <Users size={24} style={{color:'var(--n-400)'}} />
+              <Users size={24} style={{color:'var(--n-800)'}} />
             </div>
             <p className="text-sm font-bold" style={{color:'var(--n-900)'}}>Nenhum cliente encontrado</p>
-            <p className="text-xs mt-1" style={{color:'var(--n-400)'}}>Tente ajustar os filtros</p>
+            <p className="text-xs mt-1" style={{color:'var(--n-800)'}}>Tente ajustar os filtros</p>
           </div>
         )}
         {filteredStudents.map((student) => {
@@ -389,13 +398,17 @@ const Students: React.FC = () => {
                         {student.isActive ? 'Ativo' : 'Inativo'}
                       </span>
                       {student.isConsulting && (
-                        <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold text-purple-400" style={{background:'rgba(167,139,250,0.1)'}}>
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider" 
+                          style={{background:'#fef3c7',color:'#92400e',border:'1.5px solid #fcd34d'}}>
                           Consultoria
                         </span>
                       )}
                       <span className="px-1.5 py-0.5 rounded-full text-xs font-medium"
-                        style={{color: student.plan === 'monthly' ? 'var(--accent)' : 'var(--n-600)', background: student.plan === 'monthly' ? 'var(--accent-light)' : 'var(--n-100)'}}>
-                        {student.plan === 'monthly' ? 'Mensal' : 'Sessão'}
+                        style={{
+                          color: student.plan === 'monthly' ? 'var(--accent)' : student.plan === 'long_term' ? '#8b5cf6' : 'var(--n-600)', 
+                          background: student.plan === 'monthly' ? 'var(--accent-light)' : student.plan === 'long_term' ? 'rgba(139,92,246,0.1)' : 'var(--n-100)'
+                        }}>
+                        {student.plan === 'monthly' ? 'Mensal' : student.plan === 'long_term' ? 'Pagamento antecipado' : 'Sessão'}
                       </span>
                     </div>
                   </div>
@@ -417,7 +430,7 @@ const Students: React.FC = () => {
                       }}
                       className="p-1.5 rounded-lg transition-all touch-manipulation hover:bg-blue-500/10"
                       title="Compartilhar link de evolução"
-                      style={{ color: sharingId === student.id ? 'var(--accent)' : 'var(--n-400)' }}
+                      style={{ color: sharingId === student.id ? 'var(--accent)' : 'var(--n-800)' }}
                       role="button"
                       aria-label={`Compartilhar evolução de ${student.name}`}
                     >
@@ -425,7 +438,7 @@ const Students: React.FC = () => {
                     </span>
                     <span
                       onClick={(e) => { e.stopPropagation(); handleDelete(student.id); }} 
-                      className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all touch-manipulation" 
+                      className="p-1.5 text-slate-700 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all touch-manipulation" 
                       title="Excluir"
                       role="button"
                       aria-label={`Excluir aluno ${student.name}`}
@@ -445,21 +458,39 @@ const Students: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs mt-2">
-                  <div className="flex items-center gap-1" style={{color:'var(--n-500)'}}>
+                  <div className="flex items-center gap-1" style={{color:'var(--n-900)'}}>
                     <Phone size={11} style={{color:'var(--accent)'}} className="flex-shrink-0" />
                     <span className="truncate">{student.phone}</span>
                   </div>
-                  <div className="flex items-center gap-1" style={{color:'var(--n-500)'}}>
+                  <div className="flex items-center gap-1" style={{color:'var(--n-900)'}}>
                     <DollarSign size={11} style={{color:'var(--success)'}} className="flex-shrink-0" />
-                    <span className="font-semibold" style={{color:'var(--n-900)'}}>R$ {student.value}</span>
+                    <span className="font-semibold flex items-center gap-1.5" style={{color:'var(--n-900)'}}>
+                      {student.value === 0 ? (
+                        <span className="px-1.5 py-0.5 rounded-[4px] bg-emerald-100 text-emerald-700 font-bold uppercase tracking-tighter text-[9px]">
+                          Cortesia
+                        </span>
+                      ) : (
+                        student.plan === 'long_term' ? `R$ ${student.totalValue} (Total)` : `R$ ${student.value}`
+                      )}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-1" style={{color:'var(--n-500)'}}>
-                    <Calendar size={11} style={{color:'#8b5cf6'}} className="flex-shrink-0" />
-                    <span>{student.weeklyFrequency}x/sem</span>
-                  </div>
-                  <div className="truncate text-xs" style={{color:'var(--n-400)'}}>
-                    {student.selectedDays.join(', ') || '—'}
-                  </div>
+                  {!student.isConsulting && (
+                    <>
+                      <div className="flex items-center gap-1" style={{color:'var(--n-900)'}}>
+                        <Calendar size={11} style={{color:'#8b5cf6'}} className="flex-shrink-0" />
+                        <span>{student.weeklyFrequency}x/sem</span>
+                      </div>
+                      <div className="truncate text-xs" style={{color:'var(--n-800)'}}>
+                        {student.selectedDays.join(', ') || '—'}
+                      </div>
+                      {student.plan === 'long_term' && student.nextBillingDate && (
+                        <div className="flex items-center gap-1 mt-1 text-[10px] font-medium text-purple-600">
+                          <Calendar size={10} />
+                          Prox. Cobrança: {new Date(student.nextBillingDate + 'T12:00:00').toLocaleDateString('pt-BR')}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -481,7 +512,7 @@ const Students: React.FC = () => {
                   onClick={() => { setShowForm(false); setEditingStudent(null); }}
                   className="p-2 hover:bg-black/5 rounded-lg transition-colors touch-manipulation"
                 >
-                  <X size={20} style={{color:'var(--n-400)'}} />
+                  <X size={20} style={{color:'var(--n-800)'}} />
                 </button>
               </div>
 
@@ -490,8 +521,8 @@ const Students: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setModalTab('data')}
-                  className={`pb-3 text-xs font-bold transition-all relative ${modalTab === 'data' ? '' : 'opacity-40'}`}
-                  style={{color: modalTab === 'data' ? 'var(--accent)' : 'var(--n-500)'}}
+                  className={`pb-3 text-xs font-bold transition-all relative ${modalTab === 'data' ? '' : 'opacity-70'}`}
+                  style={{color: modalTab === 'data' ? 'var(--accent)' : 'var(--n-900)'}}
                 >
                   Dados do Cliente
                   {modalTab === 'data' && <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{background:'var(--accent)'}} />}
@@ -500,8 +531,8 @@ const Students: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setModalTab('access')}
-                    className={`pb-3 text-xs font-bold transition-all relative ${modalTab === 'access' ? '' : 'opacity-40'}`}
-                    style={{color: modalTab === 'access' ? 'var(--accent)' : 'var(--n-500)'}}
+                    className={`pb-3 text-xs font-bold transition-all relative ${modalTab === 'access' ? '' : 'opacity-70'}`}
+                    style={{color: modalTab === 'access' ? 'var(--accent)' : 'var(--n-900)'}}
                   >
                     Link de Acesso
                     {modalTab === 'access' && <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{background:'var(--accent)'}} />}
@@ -515,7 +546,7 @@ const Students: React.FC = () => {
               {/* Nome + Telefone */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-600)'}}>Nome completo</label>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-800)'}}>Nome completo</label>
                   <input
                     type="text"
                     required
@@ -529,7 +560,7 @@ const Students: React.FC = () => {
                   )}
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-600)'}}>Telefone</label>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-800)'}}>Telefone</label>
                   <input
                     type="tel"
                     required
@@ -547,7 +578,7 @@ const Students: React.FC = () => {
                 </div>
                 {formData.plan === 'monthly' && (
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-600)'}}>Dia vencimento</label>
+                    <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-800)'}}>Dia vencimento</label>
                     <input
                       type="number"
                       min="1"
@@ -562,79 +593,148 @@ const Students: React.FC = () => {
                 )}
               </div>
 
+              {/* Toggles (Consultoria + Ativo) moved up for better UX */}
+              <div className="flex flex-wrap gap-4 py-2 border-y" style={{borderColor:'var(--n-100)', background:'var(--n-50)'}}>
+                <div className="px-5 flex flex-wrap gap-6">
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={formData.isConsulting}
+                        onChange={(e) => setFormData(prev => ({ ...prev, isConsulting: e.target.checked }))}
+                        className="sr-only"
+                      />
+                      <div className={`w-11 h-6 rounded-full transition-colors ${formData.isConsulting ? 'bg-blue-600' : 'bg-gray-300'}`} />
+                      <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${formData.isConsulting ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-extrabold" style={{color:'var(--n-900)'}}>Consultoria Online</span>
+                      <span className="text-[10px]" style={{color:'var(--n-900)'}}>Habilita recursos de consultoria</span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.isActive}
+                      onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
+                      className="w-5 h-5 rounded accent-blue-600"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-extrabold" style={{color:'var(--n-900)'}}>Cliente Ativo</span>
+                      <span className="text-[10px]" style={{color:'var(--n-900)'}}>Visível na listagem</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
               {/* Plano + Valor + Frequência + Vencimento */}
               <div className={`grid gap-3 ${formData.plan === 'monthly' ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'}`}>
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-600)'}}>Plano</label>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-800)'}}>Plano</label>
                   <select
                     value={formData.plan}
-                    onChange={(e) => setFormData(prev => ({ ...prev, plan: e.target.value as 'monthly' | 'session' }))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, plan: e.target.value as any }))}
                     className="input-base"
                   >
                     <option value="monthly">Mensal</option>
                     <option value="session">Sessão</option>
+                    <option value="long_term">Pagamento antecipado</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-600)'}}>Valor (R$)</label>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-800)'}}>
+                    {formData.plan === 'long_term' ? 'Valor Total (R$)' : 'Valor (R$)'}
+                  </label>
                   <input
                     type="number"
-                    required
-                    value={formData.value || ''}
+                    value={formData.plan === 'long_term' ? (formData as any).totalValue || '' : formData.value === 0 ? '0' : formData.value || ''}
                     placeholder="0"
                     onFocus={(e) => e.target.select()}
-                    onChange={(e) => setFormData(prev => ({ ...prev, value: e.target.value === '' ? 0 : Number(e.target.value) }))}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? 0 : Number(e.target.value);
+                      if (formData.plan === 'long_term') {
+                        setFormData(prev => ({ ...prev, totalValue: val } as any));
+                      } else {
+                        setFormData(prev => ({ ...prev, value: val }));
+                      }
+                    }}
                     className="input-base"
                   />
                   {formErrors.value && (
                     <p className="text-xs text-red-400 mt-1">{formErrors.value}</p>
                   )}
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-600)'}}>Freq./sem</label>
-                  <select
-                    required
-                    value={formData.weeklyFrequency}
-                    onChange={(e) => handleFrequencyChange(Number(e.target.value))}
-                    className="input-base"
-                  >
-                    {[1, 2, 3, 4, 5, 6].map(n => (
-                      <option key={n} value={n}>{n}x por semana</option>
-                    ))}
-                  </select>
-                  {formErrors.weeklyFrequency && (
-                    <p className="text-xs text-red-400 mt-1">{formErrors.weeklyFrequency}</p>
-                  )}
-                </div>
+                {!formData.isConsulting && (
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-800)'}}>Vezes na semana</label>
+                    <select
+                      required
+                      value={formData.weeklyFrequency}
+                      onChange={(e) => handleFrequencyChange(Number(e.target.value))}
+                      className="input-base"
+                    >
+                      {[1, 2, 3, 4, 5, 6].map(n => (
+                        <option key={n} value={n}>{n}x por semana</option>
+                      ))}
+                    </select>
+                    {formErrors.weeklyFrequency && (
+                      <p className="text-xs text-red-400 mt-1">{formErrors.weeklyFrequency}</p>
+                    )}
+                  </div>
+                )}
+
+                {formData.plan === 'long_term' && (
+                  <>
+                    <div className="flex flex-col gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-800)'}}>Duração do Plano</label>
+                        <div className="flex gap-2">
+                          <select
+                            value={(formData as any).planDuration || 0}
+                            onChange={(e) => setFormData({ ...formData, planDuration: Number(e.target.value) } as any)}
+                            className="input-base flex-1"
+                          >
+                            <option value={3}>3 meses</option>
+                            <option value={6}>6 meses</option>
+                            <option value={8}>8 meses</option>
+                            <option value={12}>12 meses</option>
+                            <option value={15}>15 meses</option>
+                            <option value={0}>Personalizado</option>
+                          </select>
+                          {(formData as any).planDuration === 0 && (
+                            <input
+                              type="number"
+                              placeholder="Qtd meses"
+                              value={(formData as any).customMonths || ''}
+                              onChange={(e) => setFormData({ ...formData, customMonths: Number(e.target.value) } as any)}
+                              className="input-base w-24"
+                              min="1"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'var(--n-800)'}}>Próxima Cobrança</label>
+                      <input
+                        type="date"
+                        required
+                        value={(formData as any).nextBillingDate || ''}
+                        onChange={(e) => setFormData({ ...formData, nextBillingDate: e.target.value } as any)}
+                        className="input-base"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
-              {/* Checkboxes */}
-              <div className="flex flex-wrap gap-4">
-                <label className="flex items-center gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.isConsulting}
-                    onChange={(e) => setFormData(prev => ({ ...prev, isConsulting: e.target.checked }))}
-                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
-                  />
-                  <span className="text-sm" style={{color:'var(--n-700)'}}>Consultoria</span>
-                </label>
-                <label className="flex items-center gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.isActive}
-                    onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
-                    className="w-4 h-4 rounded accent-blue-500"
-                  />
-                  <span className="text-sm" style={{color:'var(--n-700)'}}>Cliente ativo</span>
-                </label>
-              </div>
 
               {/* Dias e horários */}
               {!formData.isConsulting && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="block text-xs font-semibold uppercase tracking-wider" style={{color:'var(--n-600)'}}>
+                    <label className="block text-xs font-semibold uppercase tracking-wider" style={{color:'var(--n-800)'}}>
                       Dias e horários
                     </label>
                     {(formData.selectedDays?.length || 0) > 0 && (
@@ -657,11 +757,11 @@ const Students: React.FC = () => {
                           disabled={isDisabled}
                           onClick={() => handleDaySelection(day)}
                           className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 touch-manipulation ${
-                            isDisabled ? 'opacity-40 cursor-not-allowed' : 'hover:scale-105'
+                            isDisabled ? 'opacity-70 cursor-not-allowed' : 'hover:scale-105'
                           }`}
                           style={isSelected
                             ? {background:'var(--accent)',color:'#fff',border:'1.5px solid var(--accent)'}
-                            : {background:'var(--n-100)',color:'var(--n-600)',border:'1.5px solid var(--n-200)'}
+                            : {background:'var(--n-100)',color:'var(--n-800)',border:'1.5px solid var(--n-200)'}
                           }
                         >
                           {day.slice(0, 3)}
@@ -675,7 +775,7 @@ const Students: React.FC = () => {
                     <div className="space-y-2">
                       {formData.selectedDays?.map((day, idx) => (
                         <div key={day} className="flex items-center gap-3 p-2.5 rounded-lg" style={{background:'var(--n-50)',border:'1px solid var(--n-200)'}}>
-                           <span className="text-sm font-semibold min-w-[80px]" style={{color:'var(--n-700)'}}>{day}</span>
+                           <span className="text-sm font-semibold min-w-[80px]" style={{color:'var(--n-800)'}}>{day}</span>
                           <select
                             value={formData.selectedTimes?.[idx] || '08:00'}
                             onChange={(e) => handleTimeChange(idx, e.target.value)}
@@ -706,7 +806,7 @@ const Students: React.FC = () => {
                         type="button"
                         onClick={() => setShowWeekPreview(prev => !prev)}
                         className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-all duration-150 touch-manipulation w-full justify-center mt-1 hover:scale-[1.01]"
-                        style={{background:'var(--n-100)',color:'var(--n-700)',border:'1px solid var(--n-200)'}}
+                        style={{background:'var(--n-100)',color:'var(--n-800)',border:'1px solid var(--n-200)'}}
                       >
                         <CalendarDays size={12} />
                         {showWeekPreview ? 'Ocultar preview' : 'Repetir por 4 semanas — ver datas'}
@@ -714,7 +814,7 @@ const Students: React.FC = () => {
 
                       {showWeekPreview && (
                         <div className="rounded-xl p-3 space-y-3 animate-fade-in-up" style={{background:'var(--n-50)',border:'1px solid var(--n-200)'}}>
-                          <p className="text-xs font-bold" style={{color:'var(--n-700)'}}>
+                          <p className="text-xs font-bold" style={{color:'var(--n-800)'}}>
                             Preview das próximas 4 semanas
                           </p>
                           {generateWeekPreview().map((week, wIdx) => (
@@ -727,7 +827,7 @@ const Students: React.FC = () => {
                                   <span
                                     key={dIdx}
                                     className="text-[11px] px-2 py-1 rounded-md font-medium"
-                                    style={{background:'var(--n-0)',border:'1px solid var(--n-200)',color:'var(--n-700)'}}
+                                    style={{background:'var(--n-0)',border:'1px solid var(--n-200)',color:'var(--n-800)'}}
                                   >
                                     {item.dayShort} {item.dateStr} · {item.time}
                                   </span>
@@ -735,7 +835,7 @@ const Students: React.FC = () => {
                               </div>
                             </div>
                           ))}
-                          <p className="text-[10px] mt-1" style={{color:'var(--n-400)'}}>
+                          <p className="text-[10px] mt-1" style={{color:'var(--n-800)'}}>
                             Os horários se repetem automaticamente toda semana na agenda.
                           </p>
                         </div>
@@ -751,7 +851,7 @@ const Students: React.FC = () => {
                     type="button"
                     onClick={() => { setShowForm(false); setEditingStudent(null); }}
                     className="flex-1 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all touch-manipulation"
-                    style={{border:'1px solid var(--n-200)',color:'var(--n-600)'}}
+                    style={{border:'1px solid var(--n-200)',color:'var(--n-800)'}}
                   >
                     Cancelar
                   </button>
@@ -771,7 +871,7 @@ const Students: React.FC = () => {
                     <Share2 size={28} style={{color:'var(--accent)'}} />
                   </div>
                   <h3 className="text-base font-bold" style={{color:'var(--n-900)'}}>Portal de Evolução</h3>
-                  <p className="text-xs max-w-[240px] mx-auto" style={{color:'var(--n-500)'}}>
+                  <p className="text-xs max-w-[240px] mx-auto" style={{color:'var(--n-900)'}}>
                     Envie o link abaixo para o aluno acompanhar as fotos, medidas e bioimpedância.
                   </p>
                 </div>
@@ -779,9 +879,9 @@ const Students: React.FC = () => {
                 <div className="space-y-4">
                   {/* Link Completo */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider pl-1" style={{color:'var(--n-500)'}}>Link do Aluno</label>
+                    <label className="text-[10px] font-bold uppercase tracking-wider pl-1" style={{color:'var(--n-900)'}}>Link do Aluno</label>
                     <div className="flex items-center gap-2 p-3 rounded-xl" style={{background:'var(--n-50)', border:'1px solid var(--n-200)'}}>
-                      <div className="flex-1 truncate text-xs font-medium" style={{color:'var(--n-700)'}}>
+                      <div className="flex-1 truncate text-xs font-medium" style={{color:'var(--n-800)'}}>
                         {window.location.origin}/s/{editingStudent?.shareToken || 'Gerando...'}
                       </div>
                       <button
@@ -802,7 +902,7 @@ const Students: React.FC = () => {
 
                   {/* Código de Acesso */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider pl-1" style={{color:'var(--n-500)'}}>Código de Acesso</label>
+                    <label className="text-[10px] font-bold uppercase tracking-wider pl-1" style={{color:'var(--n-900)'}}>Código de Acesso</label>
                     <div className="flex items-center gap-2 p-3 rounded-xl" style={{background:'var(--n-50)', border:'1px solid var(--n-200)'}}>
                       <div className="flex-1 truncate text-xs font-mono font-bold" style={{color:'var(--n-900)'}}>
                         {editingStudent?.shareToken || 'Gerando...'}
@@ -815,7 +915,7 @@ const Students: React.FC = () => {
                           success('Código copiado!');
                         }}
                         className="p-2 rounded-lg hover:bg-white transition-all shadow-sm"
-                        style={{background:'var(--n-0)', border:'1px solid var(--n-200)', color:'var(--n-500)'}}
+                        style={{background:'var(--n-0)', border:'1px solid var(--n-200)', color:'var(--n-900)'}}
                       >
                         <Copy size={16} />
                       </button>
@@ -826,7 +926,7 @@ const Students: React.FC = () => {
                 <div className="p-4 rounded-xl space-y-2" style={{background:'var(--accent-light)', border:'1.5px dashed var(--accent)'}}>
                   <div className="flex items-start gap-2">
                     <Check size={14} style={{color:'var(--accent)', marginTop:'2px'}} className="flex-shrink-0" />
-                    <p className="text-[11px] leading-relaxed" style={{color:'var(--n-700)'}}>
+                    <p className="text-[11px] leading-relaxed" style={{color:'var(--n-800)'}}>
                       Este link é <strong>público</strong> para quem tiver o código. O aluno não precisa de senha para acessar o portal dele.
                     </p>
                   </div>
@@ -836,7 +936,7 @@ const Students: React.FC = () => {
                   type="button"
                   onClick={() => setModalTab('data')}
                   className="w-full py-3 text-xs font-bold rounded-xl transition-all touch-manipulation"
-                  style={{border:'1.5px solid var(--n-200)', color:'var(--n-600)'}}
+                  style={{border:'1.5px solid var(--n-200)', color:'var(--n-800)'}}
                 >
                   Voltar para Dados
                 </button>

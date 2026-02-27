@@ -57,7 +57,7 @@ const EvolutionContent: React.FC = () => {
     } else if (bioData.musclePct !== 0) {
       setBioData(prev => ({ ...prev, musclePct: 0 }));
     }
-  }, [bioData.weight, bioData.muscleMass]);
+  }, [bioData.weight, bioData.muscleMass, bioData.musclePct]);
 
   const [measDate, setMeasDate] = useState(new Date().toISOString().split('T')[0]);
   const [measWeight, setMeasWeight] = useState(0);

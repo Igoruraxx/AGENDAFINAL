@@ -15,6 +15,9 @@ export interface Database {
           notify_before: boolean;
           notify_at_time: boolean;
           daily_list_time: string;
+          subscription_end_date: string | null;
+          subscription_origin: 'trial' | 'courtesy' | 'paid';
+          subscription_history: Json;
           created_at: string;
           updated_at: string;
         };
@@ -29,6 +32,9 @@ export interface Database {
           notify_before?: boolean;
           notify_at_time?: boolean;
           daily_list_time?: string;
+          subscription_end_date?: string | null;
+          subscription_origin?: 'trial' | 'courtesy' | 'paid';
+          subscription_history?: Json;
           created_at?: string;
           updated_at?: string;
         };
@@ -43,6 +49,9 @@ export interface Database {
           notify_before?: boolean;
           notify_at_time?: boolean;
           daily_list_time?: string;
+          subscription_end_date?: string | null;
+          subscription_origin?: 'trial' | 'courtesy' | 'paid';
+          subscription_history?: Json;
           updated_at?: string;
         };
       };
@@ -52,7 +61,7 @@ export interface Database {
           user_id: string;
           name: string;
           phone: string;
-          plan: 'monthly' | 'session';
+          plan: 'monthly' | 'session' | 'long_term';
           value: number;
           weekly_frequency: number;
           selected_days: string[];
@@ -60,6 +69,9 @@ export interface Database {
           is_consulting: boolean;
           is_active: boolean;
           billing_day: number | null;
+          plan_duration: number | null;
+          total_value: number | null;
+          next_billing_date: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -68,7 +80,7 @@ export interface Database {
           user_id: string;
           name: string;
           phone?: string;
-          plan?: 'monthly' | 'session';
+          plan?: 'monthly' | 'session' | 'long_term';
           value?: number;
           weekly_frequency?: number;
           selected_days?: string[];
@@ -76,13 +88,16 @@ export interface Database {
           is_consulting?: boolean;
           is_active?: boolean;
           billing_day?: number | null;
+          plan_duration?: number | null;
+          total_value?: number | null;
+          next_billing_date?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           name?: string;
           phone?: string;
-          plan?: 'monthly' | 'session';
+          plan?: 'monthly' | 'session' | 'long_term';
           value?: number;
           weekly_frequency?: number;
           selected_days?: string[];
@@ -90,6 +105,9 @@ export interface Database {
           is_consulting?: boolean;
           is_active?: boolean;
           billing_day?: number | null;
+          plan_duration?: number | null;
+          total_value?: number | null;
+          next_billing_date?: string | null;
           updated_at?: string;
         };
       };

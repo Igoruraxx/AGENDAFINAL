@@ -9,7 +9,7 @@ function dbToStudent(row: DbStudent): Student {
     id: row.id,
     name: row.name,
     phone: row.phone,
-    plan: row.plan as 'monthly' | 'session',
+    plan: row.plan as 'monthly' | 'session' | 'long_term',
     value: Number(row.value),
     weeklyFrequency: row.weekly_frequency,
     selectedDays: row.selected_days,
@@ -18,6 +18,9 @@ function dbToStudent(row: DbStudent): Student {
     isActive: row.is_active,
     billingDay: row.billing_day ?? undefined,
     shareToken: (row as any).share_token ?? undefined,
+    planDuration: row.plan_duration ?? undefined,
+    totalValue: row.total_value ? Number(row.total_value) : undefined,
+    nextBillingDate: row.next_billing_date ?? undefined,
   };
 }
 
@@ -34,6 +37,9 @@ function studentToInsert(student: Omit<Student, 'id'>, userId: string): DbStuden
     is_consulting: student.isConsulting,
     is_active: student.isActive,
     billing_day: student.billingDay ?? null,
+    plan_duration: student.planDuration ?? null,
+    total_value: student.totalValue ?? null,
+    next_billing_date: student.nextBillingDate ?? null,
   };
 }
 
@@ -49,6 +55,9 @@ function studentToUpdate(updates: Partial<Student>): DbStudentUpdate {
   if (updates.isConsulting !== undefined) u.is_consulting = updates.isConsulting;
   if (updates.isActive !== undefined) u.is_active = updates.isActive;
   if (updates.billingDay !== undefined) u.billing_day = updates.billingDay ?? null;
+  if (updates.planDuration !== undefined) u.plan_duration = updates.planDuration ?? null;
+  if (updates.totalValue !== undefined) u.total_value = updates.totalValue ?? null;
+  if (updates.nextBillingDate !== undefined) u.next_billing_date = updates.nextBillingDate ?? null;
   return u;
 }
 

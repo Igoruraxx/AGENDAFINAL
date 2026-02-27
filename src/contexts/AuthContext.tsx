@@ -19,7 +19,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>; /* FIX 1 */
   upgradeToPremium: () => void;
   downgradeToFree: () => void;
   updateUser: (updates: Partial<User>) => void;
@@ -38,6 +38,14 @@ const EMPTY_USER: User = {
     notifyAtTime: true,
     dailyListTime: '08:00',
   },
+  subscription: {
+    plan: 'free',
+    status: 'expired',
+    startDate: '',
+    endDate: '',
+    origin: 'trial',
+    history: [],
+  },
 };
 
 function profileToUser(profile: Profile): User {
@@ -53,6 +61,14 @@ function profileToUser(profile: Profile): User {
       notifyAtTime: profile.notify_at_time,
       dailyListTime: profile.daily_list_time,
     },
+    subscription: {
+      plan: profile.plan as UserPlan,
+      status: (profile.subscription_end_date && new Date(profile.subscription_end_date) > new Date()) ? 'active' : 'expired',
+      startDate: profile.created_at.split('T')[0],
+      endDate: profile.subscription_end_date || '',
+      origin: (profile.subscription_origin as any) || 'trial',
+      history: Array.isArray(profile.subscription_history) ? profile.subscription_history as any : [],
+    }
   };
 }
 
@@ -171,8 +187,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       clearTimeout(safetyTimeout);
       subscription.unsubscribe();
+      mountedRef.current = false; /* FIX 2 */
     };
-  }, []); // sem dependências — roda só na montagem
+  }, [fetchProfile]);
 
 
   const login = useCallback(async (email: string, password: string) => {
@@ -214,14 +231,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const upgradeToPremium = useCallback(async () => {
     if (!session?.user) return;
-    const { error } = await supabase.from('profiles').update({ plan: 'premium' }).eq('id', session.user.id);
-    if (!error) setCurrentUser(prev => ({ ...prev, plan: 'premium' as UserPlan }));
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 7);
+    const endDateStr = endDate.toISOString().split('T')[0];
+    const startDateStr = new Date().toISOString().split('T')[0];
+
+    const newHistoryEntry = {
+      id: `h${Date.now()}`,
+      plan: 'premium',
+      origin: 'trial',
+      startDate: startDateStr,
+      endDate: endDateStr,
+      durationDays: 7,
+      addedBy: 'self_system',
+      note: 'Ativação de 7 dias grátis pelo app'
+    };
+
+    // Busca histórico atual para anexar
+    const { data: profile } = await supabase.from('profiles').select('subscription_history').eq('id', session.user.id).single();
+    const currentHistory = (profile && Array.isArray(profile.subscription_history)) ? (profile.subscription_history as any[]) : [];
+    const updatedHistory = [...currentHistory, newHistoryEntry];
+
+    const { error } = await supabase.from('profiles').update({ 
+      plan: 'premium',
+      subscription_end_date: endDateStr,
+      subscription_origin: 'trial',
+      subscription_history: updatedHistory
+    }).eq('id', session.user.id);
+
+    if (!error) {
+      setCurrentUser(prev => ({ 
+        ...prev, 
+        plan: 'premium' as UserPlan,
+        subscription: {
+          ...prev.subscription,
+          plan: 'premium',
+          status: 'active',
+          endDate: endDateStr,
+          origin: 'trial',
+          history: updatedHistory
+        }
+      }));
+    }
   }, [session]);
 
   const downgradeToFree = useCallback(async () => {
     if (!session?.user) return;
-    const { error } = await supabase.from('profiles').update({ plan: 'free' }).eq('id', session.user.id);
-    if (!error) setCurrentUser(prev => ({ ...prev, plan: 'free' as UserPlan }));
+    const { error } = await supabase.from('profiles').update({ 
+      plan: 'free',
+      subscription_end_date: null,
+      subscription_origin: 'trial' /* FIX 3 */
+    }).eq('id', session.user.id);
+    
+    if (!error) {
+      setCurrentUser(prev => ({ 
+        ...prev, 
+        plan: 'free' as UserPlan,
+        subscription: {
+          ...prev.subscription,
+          plan: 'free',
+          status: 'expired',
+          endDate: '',
+          origin: 'trial' // Mantém o origin ou ajusta conforme necessário
+        }
+      }));
+    }
   }, [session]);
 
   const updateUser = useCallback(async (updates: Partial<User>) => {

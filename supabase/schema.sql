@@ -17,6 +17,9 @@ create table if not exists public.profiles (
   notify_before boolean not null default true,
   notify_at_time boolean not null default true,
   daily_list_time text not null default '08:00',
+  subscription_end_date date,
+  subscription_origin text check (subscription_origin in ('trial', 'courtesy', 'paid')),
+  subscription_history jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -44,7 +47,7 @@ begin
   );
   return new;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
@@ -58,7 +61,7 @@ begin
   new.updated_at = now();
   return new;
 end;
-$$ language plpgsql;
+$$ language plpgsql set search_path = public;
 
 create trigger profiles_updated_at
   before update on public.profiles
@@ -72,14 +75,18 @@ create table if not exists public.students (
   user_id uuid references public.profiles(id) on delete cascade not null,
   name text not null,
   phone text not null default '',
-  plan text not null default 'monthly' check (plan in ('monthly', 'session')),
+  plan text not null default 'monthly' check (plan in ('monthly', 'session', 'long_term')),
+  plan_duration integer,
   value numeric(10,2) not null default 0,
+  total_value numeric(10,2),
   weekly_frequency integer not null default 1,
   selected_days text[] not null default '{}',
   selected_times text[] not null default '{}',
   is_consulting boolean not null default false,
   is_active boolean not null default true,
   billing_day integer check (billing_day is null or (billing_day >= 1 and billing_day <= 31)),
+  next_billing_date date,
+  share_token uuid default gen_random_uuid(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
