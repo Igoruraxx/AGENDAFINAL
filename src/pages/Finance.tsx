@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { DollarSign, TrendingUp, Users, Calendar, ChevronLeft, ChevronRight, CheckCircle2, Clock, ArrowUpRight, ArrowDownRight, MessageCircle, BadgeCheck, AlertTriangle } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isToday, isBefore, startOfDay, differenceInDays, subMonths, addMonths } from 'date-fns';
+import { DollarSign, TrendingUp, Users, Calendar, ChevronLeft, ChevronRight, CheckCircle2, Clock, ArrowUpRight, ArrowDownRight, MessageCircle, BadgeCheck, AlertTriangle, Download } from 'lucide-react';
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isToday, isBefore, startOfDay, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
 import { Student, Appointment } from '../types';
 import FeatureGate from '../components/FeatureGate';
 import { usePermissions } from '../hooks/usePermissions';
@@ -10,6 +11,36 @@ import { usePayments } from '../hooks/usePayments';
 import { useAppointments } from '../hooks/useAppointments';
 
 const CUR = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+// CSV export helper
+const exportCSV = (rows: string[][], filename: string) => {
+  const content = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\ufeff' + content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+};
+
+const DAY_MAP: Record<string, number> = { 'Seg': 1, 'Ter': 2, 'Qua': 3, 'Qui': 4, 'Sex': 5, 'Sáb': 6, 'Dom': 0 };
+
+function buildMonthAppointments(students: Student[], monthDate: Date, today: Date): Appointment[] {
+  const days = eachDayOfInterval({ start: startOfMonth(monthDate), end: endOfMonth(monthDate) });
+  const apts: Appointment[] = [];
+  students.filter(s => !s.isConsulting).forEach(student => {
+    student.selectedDays.forEach((dayName, idx) => {
+      const jsDay = DAY_MAP[dayName];
+      const time  = student.selectedTimes[idx] || '08:00';
+      days.forEach(day => {
+        if (getDay(day) !== jsDay) return;
+        // Inactive students: skip future sessions — excluded from future planning
+        if (!student.isActive && isBefore(today, startOfDay(day))) return;
+        apts.push({ id: `${student.id}-${format(day,'yyyy-MM-dd')}-${time}`, studentId: student.id, studentName: student.name, date: day, time, duration: 60 });
+      });
+    });
+  });
+  return apts;
+}
 
 interface PaymentStatus { paid: boolean; paidAt?: Date; dueDate: Date; }
 interface SummaryRow { student: Student; totalStu: number; doneStu: number; pendStu: number; earned: number; expected: number; }
@@ -103,6 +134,25 @@ const FinanceContent: React.FC = () => {
       console.error('[Finance] Erro ao alterar status:', err);
     }
   };
+
+  // 6-month revenue trend
+  const revenueChart = useMemo(() => {
+    return Array.from({ length: 6 }, (_, i) => {
+      const m = subMonths(currentMonth, 5 - i);
+      const apts = buildMonthAppointments(students, m, today);
+      const monthly = students.filter(s => s.isActive && s.plan === 'monthly').reduce((acc, s) => acc + s.value, 0);
+      const session = apts.filter(a => !isBefore(today, startOfDay(a.date)) === false).reduce((acc, a) => {
+        const s = students.find(st => st.id === a.studentId);
+        return acc + (s?.plan === 'session' ? s.value : 0);
+      }, 0);
+      return {
+        mes: format(m, 'MMM', { locale: ptBR }),
+        Mensal: monthly,
+        Sessão: session,
+        Total: monthly + session,
+      };
+    });
+  }, [students, currentMonth, today]);
 
   const summaries: SummaryRow[] = useMemo(() => students.map((student) => {
     const stuApts  = monthApts.filter(a => a.studentId === student.id);
@@ -230,6 +280,14 @@ const FinanceContent: React.FC = () => {
             monthApts={monthApts}
             completedApts={completedApts}
             pendingApts={pendingApts}
+            revenueChart={revenueChart}
+            onExport={() => {
+              const rows = [
+                ['Nome','Plano','Valor','Sessões/mês','Status'],
+                ...students.map(s => [s.name, s.plan === 'monthly' ? 'Mensal' : 'Sessão', String(s.value), String(s.weeklyFrequency * 4), s.isActive ? 'Ativo' : 'Inativo'])
+              ];
+              exportCSV(rows, `fitpro-clientes-${format(currentMonth,'yyyy-MM')}.csv`);
+            }}
           />
         )}
 
@@ -253,9 +311,22 @@ interface OverviewProps {
   students: Student[]; summaries: SummaryRow[];
   totalExpected: number; totalEarned: number; totalPending: number; pct: number;
   monthApts: Appointment[]; completedApts: Appointment[]; pendingApts: Appointment[];
+  revenueChart: { mes: string; Mensal: number; Sessão: number; Total: number }[];
+  onExport: () => void;
 }
-const OverviewSection: React.FC<OverviewProps> = ({ students, summaries, totalExpected, totalEarned, totalPending, pct, monthApts, completedApts, pendingApts }) => (
+const OverviewSection: React.FC<OverviewProps> = ({ students, summaries, totalExpected, totalEarned, totalPending, pct, monthApts, completedApts, pendingApts, revenueChart, onExport }) => (
   <>
+    {/* Export button */}
+    <div className="flex justify-end">
+      <button
+        onClick={onExport}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all touch-manipulation active:scale-95"
+        style={{background:'var(--accent-light)',color:'var(--accent)',border:'1px solid var(--accent)'}}
+      >
+        <Download size={12} /> Exportar CSV
+      </button>
+    </div>
+
     <div className="grid grid-cols-2 gap-3">
       <div className="rounded-xl p-3 text-left" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
         <div className="flex items-center gap-2 mb-2">
@@ -287,6 +358,26 @@ const OverviewSection: React.FC<OverviewProps> = ({ students, summaries, totalEx
         <span className="font-semibold" style={{color:'var(--success)'}}>{CUR(totalEarned)} recebido</span>
         <span className="font-semibold" style={{color:'var(--warning)'}}>{CUR(totalPending)} pendente</span>
       </div>
+    </div>
+
+    {/* 6-month revenue chart */}
+    <div className="rounded-xl p-4" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
+      <h3 className="text-sm font-bold mb-4" style={{color:'var(--n-900)'}}>Receita — últimos 6 meses</h3>
+      <ResponsiveContainer width="100%" height={160}>
+        <BarChart data={revenueChart} barSize={14} barGap={2}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--n-200)" vertical={false} />
+          <XAxis dataKey="mes" tick={{ fontSize: 10, fill: 'var(--n-500)' }} axisLine={false} tickLine={false} />
+          <YAxis hide />
+          <Tooltip
+            formatter={(value: any, name: any) => [CUR(Number(value) || 0), String(name)]}
+            contentStyle={{ background: 'var(--n-0)', border: '1px solid var(--n-200)', borderRadius: '8px', fontSize: '11px' }}
+            labelStyle={{ color: 'var(--n-900)', fontWeight: 700 }}
+          />
+          <Legend wrapperStyle={{ fontSize: '11px', color: 'var(--n-600)' }} />
+          <Bar dataKey="Mensal" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="Sessão" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
 
     <div className="rounded-xl p-4" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>

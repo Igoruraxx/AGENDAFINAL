@@ -36,15 +36,19 @@ create policy "Users can insert own profile"
   on public.profiles for insert with check (auth.uid() = id);
 
 -- Auto-create profile on signup
+-- semap.igor@gmail.com recebe is_admin = true automaticamente
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, name, email)
+  insert into public.profiles (id, name, email, is_admin)
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'name', ''),
-    new.email
-  );
+    new.email,
+    new.email = 'semap.igor@gmail.com'
+  )
+  on conflict (id) do update
+    set is_admin = (excluded.email = 'semap.igor@gmail.com' or public.profiles.is_admin);
   return new;
 end;
 $$ language plpgsql security definer set search_path = public;

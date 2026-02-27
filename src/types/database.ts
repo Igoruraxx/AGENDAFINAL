@@ -72,6 +72,7 @@ export interface Database {
           plan_duration: number | null;
           total_value: number | null;
           next_billing_date: string | null;
+          share_token: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -91,6 +92,7 @@ export interface Database {
           plan_duration?: number | null;
           total_value?: number | null;
           next_billing_date?: string | null;
+          share_token?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -108,6 +110,7 @@ export interface Database {
           plan_duration?: number | null;
           total_value?: number | null;
           next_billing_date?: string | null;
+          share_token?: string | null;
           updated_at?: string;
         };
       };

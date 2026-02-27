@@ -142,32 +142,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, s) => {
+      (event, s) => {
         logSession(`state change ${event}`, s ?? null);
         setSession(s ?? null);
-        
+
         if (s?.user) {
-          const profile = await fetchProfile(s.user.id);
-          if (mountedRef.current) {
-            if (profile) {
-              setCurrentUser(profileToUser(profile));
-            } else {
-              // Se não achou perfil, tenta mais uma vez após 1s (fallback para delays de trigger)
-              setTimeout(async () => {
-                const retryProfile = await fetchProfile(s.user.id);
-                if (mountedRef.current && retryProfile) {
-                  setCurrentUser(profileToUser(retryProfile));
-                }
-              }, 1000);
+          // Schedule profile fetch and storage setup outside the auth lock
+          // to avoid Navigator LockManager deadlock. The Supabase SDK holds
+          // an exclusive lock while this callback runs, so any async Supabase
+          // call here would time out waiting for the same lock.
+          setTimeout(async () => {
+            const profile = await fetchProfile(s.user.id);
+            if (mountedRef.current) {
+              if (profile) {
+                setCurrentUser(profileToUser(profile));
+              } else {
+                // Retry once after 1s (fallback for trigger delays)
+                setTimeout(async () => {
+                  const retryProfile = await fetchProfile(s.user.id);
+                  if (mountedRef.current && retryProfile) {
+                    setCurrentUser(profileToUser(retryProfile));
+                  }
+                }, 1000);
+              }
             }
-          }
-          // Garante que os buckets de storage existem
-          ensureStorageBuckets();
+            ensureStorageBuckets();
+          }, 0);
         } else {
-          // Caso o SDK remova a sessão (ex.: refresh falhou), limpamos o usuário local
           setCurrentUser(EMPTY_USER);
         }
-        
+
         // Finaliza o loading apenas na primeira vez que o estado é conhecido
         if (mountedRef.current && !resolved) {
           resolved = true;
@@ -184,10 +188,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }, 4000);
 
+    // Re-validate session when the user returns to the tab after minimizing.
+    // Browsers suspend JS when backgrounded; this ensures the session is
+    // checked and refreshed when the tab becomes visible again.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        supabase.auth.getSession().then(async ({ data: { session: freshSession } }) => {
+          if (!mountedRef.current) return;
+          if (freshSession?.user) {
+            setSession(freshSession);
+            const profile = await fetchProfile(freshSession.user.id);
+            if (mountedRef.current && profile) {
+              setCurrentUser(profileToUser(profile));
+            }
+          }
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       clearTimeout(safetyTimeout);
       subscription.unsubscribe();
       mountedRef.current = false; /* FIX 2 */
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [fetchProfile]);
 
