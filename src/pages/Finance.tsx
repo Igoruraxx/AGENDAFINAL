@@ -301,7 +301,7 @@ const OverviewSection: React.FC<OverviewProps> = ({ students, summaries, totalEx
           <XAxis dataKey="mes" tick={{ fontSize: 10, fill: 'var(--n-500)' }} axisLine={false} tickLine={false} />
           <YAxis hide />
           <Tooltip
-            formatter={(value: number, name: string) => [CUR(value), name]}
+            formatter={(value: any, name: any) => [CUR(Number(value) || 0), String(name)]}
             contentStyle={{ background: 'var(--n-0)', border: '1px solid var(--n-200)', borderRadius: '8px', fontSize: '11px' }}
             labelStyle={{ color: 'var(--n-900)', fontWeight: 700 }}
           />

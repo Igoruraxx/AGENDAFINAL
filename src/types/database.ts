@@ -60,6 +60,7 @@ export interface Database {
           is_consulting: boolean;
           is_active: boolean;
           billing_day: number | null;
+          share_token: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -76,6 +77,7 @@ export interface Database {
           is_consulting?: boolean;
           is_active?: boolean;
           billing_day?: number | null;
+          share_token?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -90,6 +92,7 @@ export interface Database {
           is_consulting?: boolean;
           is_active?: boolean;
           billing_day?: number | null;
+          share_token?: string | null;
           updated_at?: string;
         };
       };
