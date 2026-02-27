@@ -4,6 +4,7 @@ import BottomNavigation from './components/BottomNavigation';
 import ToastContainer from './components/ToastContainer';
 import InstallPrompt from './components/InstallPrompt';
 import OfflineBanner from './components/OfflineBanner';
+import ThemeToggle from './components/ThemeToggle';
 import { useToast } from './hooks/useToast';
 import { useAuth } from './contexts/AuthContext';
 import './App.css';
@@ -111,6 +112,7 @@ function App() {
             </span>
           </div>
         </div>
+        <ThemeToggle />
       </header>
 
       <main

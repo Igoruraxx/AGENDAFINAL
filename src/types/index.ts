@@ -28,6 +28,7 @@ export interface Appointment {
   sessionDone?: boolean;
   muscleGroups?: MuscleGroup[];
   phone?: string;
+  notes?: string;
 }
 
 export interface EvolutionPhoto {

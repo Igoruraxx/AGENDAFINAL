@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { DollarSign, TrendingUp, Users, Calendar, ChevronLeft, ChevronRight, CheckCircle2, Clock, ArrowUpRight, ArrowDownRight, MessageCircle, BadgeCheck, AlertTriangle } from 'lucide-react';
+import { DollarSign, TrendingUp, Users, Calendar, ChevronLeft, ChevronRight, CheckCircle2, Clock, ArrowUpRight, ArrowDownRight, MessageCircle, BadgeCheck, AlertTriangle, Download } from 'lucide-react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isToday, isBefore, startOfDay, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
 import { Student, Appointment } from '../types';
 import FeatureGate from '../components/FeatureGate';
 import { usePermissions } from '../hooks/usePermissions';
@@ -9,6 +10,16 @@ import { useStudents } from '../hooks/useStudents';
 
 const DAY_MAP: Record<string, number> = { Domingo:0, Segunda:1, Terça:2, Quarta:3, Quinta:4, Sexta:5, Sábado:6 };
 const CUR = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+// CSV export helper
+const exportCSV = (rows: string[][], filename: string) => {
+  const content = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\ufeff' + content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+};
 // avatar gradients removed (unused)
 
 function buildMonthAppointments(students: Student[], monthDate: Date, today: Date): Appointment[] {
@@ -105,6 +116,25 @@ const FinanceContent: React.FC = () => {
   const completedApts = useMemo(() => monthApts.filter(a => !isBefore(today, startOfDay(a.date))), [monthApts, today]);
   const pendingApts   = useMemo(() => monthApts.filter(a =>  isBefore(today, startOfDay(a.date))), [monthApts, today]);
 
+  // 6-month revenue trend
+  const revenueChart = useMemo(() => {
+    return Array.from({ length: 6 }, (_, i) => {
+      const m = subMonths(currentMonth, 5 - i);
+      const apts = buildMonthAppointments(students, m, today);
+      const monthly = students.filter(s => s.isActive && s.plan === 'monthly').reduce((acc, s) => acc + s.value, 0);
+      const session = apts.filter(a => !isBefore(today, startOfDay(a.date)) === false).reduce((acc, a) => {
+        const s = students.find(st => st.id === a.studentId);
+        return acc + (s?.plan === 'session' ? s.value : 0);
+      }, 0);
+      return {
+        mes: format(m, 'MMM', { locale: ptBR }),
+        Mensal: monthly,
+        Sessão: session,
+        Total: monthly + session,
+      };
+    });
+  }, [students, currentMonth, today]);
+
   const summaries: SummaryRow[] = useMemo(() => students.map((student) => {
     const stuApts  = monthApts.filter(a => a.studentId === student.id);
     const doneStu  = completedApts.filter(a => a.studentId === student.id).length;
@@ -182,6 +212,14 @@ const FinanceContent: React.FC = () => {
             monthApts={monthApts}
             completedApts={completedApts}
             pendingApts={pendingApts}
+            revenueChart={revenueChart}
+            onExport={() => {
+              const rows = [
+                ['Nome','Plano','Valor','Sessões/mês','Status'],
+                ...students.map(s => [s.name, s.plan === 'monthly' ? 'Mensal' : 'Sessão', String(s.value), String(s.weeklyFrequency * 4), s.isActive ? 'Ativo' : 'Inativo'])
+              ];
+              exportCSV(rows, `fitpro-clientes-${format(currentMonth,'yyyy-MM')}.csv`);
+            }}
           />
         )}
 
@@ -205,9 +243,22 @@ interface OverviewProps {
   students: Student[]; summaries: SummaryRow[];
   totalExpected: number; totalEarned: number; totalPending: number; pct: number;
   monthApts: Appointment[]; completedApts: Appointment[]; pendingApts: Appointment[];
+  revenueChart: { mes: string; Mensal: number; Sessão: number; Total: number }[];
+  onExport: () => void;
 }
-const OverviewSection: React.FC<OverviewProps> = ({ students, summaries, totalExpected, totalEarned, totalPending, pct, monthApts, completedApts, pendingApts }) => (
+const OverviewSection: React.FC<OverviewProps> = ({ students, summaries, totalExpected, totalEarned, totalPending, pct, monthApts, completedApts, pendingApts, revenueChart, onExport }) => (
   <>
+    {/* Export button */}
+    <div className="flex justify-end">
+      <button
+        onClick={onExport}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all touch-manipulation active:scale-95"
+        style={{background:'var(--accent-light)',color:'var(--accent)',border:'1px solid var(--accent)'}}
+      >
+        <Download size={12} /> Exportar CSV
+      </button>
+    </div>
+
     <div className="grid grid-cols-2 gap-3">
       <div className="rounded-xl p-3 text-left" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
         <div className="flex items-center gap-2 mb-2">
@@ -239,6 +290,26 @@ const OverviewSection: React.FC<OverviewProps> = ({ students, summaries, totalEx
         <span className="font-semibold" style={{color:'var(--success)'}}>{CUR(totalEarned)} recebido</span>
         <span className="font-semibold" style={{color:'var(--warning)'}}>{CUR(totalPending)} pendente</span>
       </div>
+    </div>
+
+    {/* 6-month revenue chart */}
+    <div className="rounded-xl p-4" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
+      <h3 className="text-sm font-bold mb-4" style={{color:'var(--n-900)'}}>Receita — últimos 6 meses</h3>
+      <ResponsiveContainer width="100%" height={160}>
+        <BarChart data={revenueChart} barSize={14} barGap={2}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--n-200)" vertical={false} />
+          <XAxis dataKey="mes" tick={{ fontSize: 10, fill: 'var(--n-500)' }} axisLine={false} tickLine={false} />
+          <YAxis hide />
+          <Tooltip
+            formatter={(value: number, name: string) => [CUR(value), name]}
+            contentStyle={{ background: 'var(--n-0)', border: '1px solid var(--n-200)', borderRadius: '8px', fontSize: '11px' }}
+            labelStyle={{ color: 'var(--n-900)', fontWeight: 700 }}
+          />
+          <Legend wrapperStyle={{ fontSize: '11px', color: 'var(--n-600)' }} />
+          <Bar dataKey="Mensal" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="Sessão" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
 
     <div className="rounded-xl p-4" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
