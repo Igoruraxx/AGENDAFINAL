@@ -14,6 +14,7 @@ function dbToAppointment(row: DbAppointment, studentName?: string): Appointment 
     duration: row.duration,
     sessionDone: row.session_done,
     muscleGroups: (row.muscle_groups || []) as MuscleGroup[],
+    notes: row.notes || undefined,
   };
 }
 

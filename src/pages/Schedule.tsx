@@ -1,14 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
-import { format, addDays, startOfWeek, isToday } from 'date-fns';
+import { format, addDays, startOfWeek, isToday, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Clock, ChevronLeft, ChevronRight, Grid3x3, Plus, X, List, CheckCircle2, MessageCircle, Dumbbell } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, Grid3x3, Plus, X, List, CheckCircle2, MessageCircle, Dumbbell, CalendarDays, Trash2, FileText } from 'lucide-react';
 import { Appointment, MuscleGroup } from '../types';
 import { useToast } from '../hooks/useToast';
 import { useAppointments } from '../hooks/useAppointments';
 import { useStudents } from '../hooks/useStudents';
 import DroppableTimeSlot from '../components/DroppableTimeSlot';
 import DraggableAppointment from '../components/DraggableAppointment';
+
+// Haptic feedback helper (silent fallback on unsupported devices)
+const haptic = (pattern: number | number[] = 10) => {
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch {}
+};
 
 interface TimeSlot {
   time: string;
@@ -34,7 +39,7 @@ const MUSCLE_GROUPS: { id: MuscleGroup; label: string; emoji: string }[] = [
 
 const Schedule: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<'day' | 'week' | 'list'>('day');
+  const [viewMode, setViewMode] = useState<'day' | 'week' | 'list' | 'month'>('day');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -44,16 +49,18 @@ const Schedule: React.FC = () => {
   const [quickAddMode, setQuickAddMode] = useState<'existing' | 'trial'>('existing');
   const [quickAddStudentId, setQuickAddStudentId] = useState<string>('1');
 
-  const { success } = useToast();
+  const { success, error: toastError } = useToast();
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
   const [modalMuscles, setModalMuscles] = useState<MuscleGroup[]>([]);
+  const [modalNotes, setModalNotes] = useState<string>('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
   
-  const { appointments, addAppointment, updateAppointment, markSessionDone: markDone } = useAppointments();
+  const { appointments, addAppointment, updateAppointment, deleteAppointment, markSessionDone: markDone } = useAppointments();
   const { students: allStudents } = useStudents();
 
   const generateTimeSlots = (): TimeSlot[] => {
@@ -156,10 +163,13 @@ const Schedule: React.FC = () => {
   };
 
   const openAptModal = (apt: Appointment) => {
+    haptic(8);
     setSelectedApt(apt);
     setModalMuscles(apt.muscleGroups || []);
+    setModalNotes(apt.notes || '');
+    setShowDeleteConfirm(false);
   };
-  const closeAptModal = () => { setSelectedApt(null); setModalMuscles([]); };
+  const closeAptModal = () => { setSelectedApt(null); setModalMuscles([]); setModalNotes(''); setShowDeleteConfirm(false); };
 
   const toggleMuscle = (m: MuscleGroup) =>
     setModalMuscles(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
@@ -167,13 +177,30 @@ const Schedule: React.FC = () => {
   const saveAptChanges = async (done: boolean) => {
     if (!selectedApt) return;
     try {
-      await markDone(selectedApt.id, modalMuscles);
-      if (!done) {
-        await updateAppointment(selectedApt.id, { session_done: false, muscle_groups: modalMuscles });
+      if (done) {
+        await markDone(selectedApt.id, modalMuscles);
+        await updateAppointment(selectedApt.id, { notes: modalNotes || null });
+        haptic([10, 50, 10]);
+      } else {
+        await updateAppointment(selectedApt.id, { session_done: false, muscle_groups: modalMuscles, notes: modalNotes || null });
+        haptic(10);
       }
-      success(`Sessão de ${selectedApt.studentName} ${done ? 'concluída' : 'atualizada'}!`);
+      success(`Sessão de ${selectedApt.studentName} ${done ? 'concluída ✓' : 'atualizada'}!`);
     } catch (err: any) {
       console.error('[Schedule] Erro ao salvar:', err.message);
+    }
+    closeAptModal();
+  };
+
+  const handleDeleteApt = async () => {
+    if (!selectedApt) return;
+    try {
+      await deleteAppointment(selectedApt.id);
+      haptic([10, 30, 10]);
+      success(`Agendamento de ${selectedApt.studentName} removido.`);
+    } catch (err: any) {
+      toastError('Erro ao remover agendamento.');
+      console.error('[Schedule] Erro ao deletar:', err.message);
     }
     closeAptModal();
   };
@@ -257,42 +284,22 @@ const Schedule: React.FC = () => {
                 Hoje
               </button>
               <div className="flex rounded-lg p-0.5" style={{background:'var(--n-100)',border:'1px solid var(--n-200)'}}>
-                <button
-                  onClick={() => setViewMode('day')}
-                  className={`px-2.5 py-1.5 rounded-md transition-all duration-120 flex items-center gap-1 touch-manipulation text-xs font-semibold ${
-                    viewMode === 'day'
-                      ? 'bg-white shadow-sm'
-                      : ''
-                  }`}
-                  style={{color: viewMode === 'day' ? 'var(--accent)' : 'var(--n-400)'}}
-                >
-                  <Clock size={13} />
-                  <span>Dia</span>
-                </button>
-                <button
-                  onClick={() => setViewMode('week')}
-                  className={`px-2.5 py-1.5 rounded-md transition-all duration-120 flex items-center gap-1 touch-manipulation text-xs font-semibold ${
-                    viewMode === 'week'
-                      ? 'bg-white shadow-sm'
-                      : ''
-                  }`}
-                  style={{color: viewMode === 'week' ? 'var(--accent)' : 'var(--n-400)'}}
-                >
-                  <Grid3x3 size={13} />
-                  <span>Sem</span>
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`px-2.5 py-1.5 rounded-md transition-all duration-120 flex items-center gap-1 touch-manipulation text-xs font-semibold ${
-                    viewMode === 'list'
-                      ? 'bg-white shadow-sm'
-                      : ''
-                  }`}
-                  style={{color: viewMode === 'list' ? 'var(--accent)' : 'var(--n-400)'}}
-                >
-                  <List size={13} />
-                  <span>Lista</span>
-                </button>
+                {([
+                  { id: 'day',   icon: Clock,        label: 'Dia'  },
+                  { id: 'week',  icon: Grid3x3,      label: 'Sem'  },
+                  { id: 'list',  icon: List,         label: 'Lista'},
+                  { id: 'month', icon: CalendarDays, label: 'Mês'  },
+                ] as const).map(({ id, icon: Icon, label }) => (
+                  <button
+                    key={id}
+                    onClick={() => { setViewMode(id); haptic(8); }}
+                    className={`px-2 py-1.5 rounded-md transition-all duration-120 flex items-center gap-1 touch-manipulation text-xs font-semibold ${viewMode === id ? 'bg-white shadow-sm' : ''}`}
+                    style={{color: viewMode === id ? 'var(--accent)' : 'var(--n-400)', background: viewMode === id ? 'var(--n-0)' : 'transparent'}}
+                  >
+                    <Icon size={12} />
+                    <span>{label}</span>
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -300,8 +307,13 @@ const Schedule: React.FC = () => {
           {/* Date navigation */}
           <div className="flex items-center justify-between">
             <button
-              onClick={() => setCurrentDate(prev => addDays(prev, viewMode === 'day' ? -1 : -7))}
-              className="p-2 rounded-lg transition-all touch-manipulation hover:bg-black/5"
+              onClick={() => {
+                haptic(8);
+                if (viewMode === 'day') setCurrentDate(prev => addDays(prev, -1));
+                else if (viewMode === 'month') setCurrentDate(prev => subMonths(prev, 1));
+                else setCurrentDate(prev => addDays(prev, -7));
+              }}
+              className="p-2 rounded-lg transition-all touch-manipulation hover:bg-black/5 active:scale-90"
             >
               <ChevronLeft size={20} style={{color:'var(--n-500)'}} />
             </button>
@@ -309,6 +321,8 @@ const Schedule: React.FC = () => {
               <div className="text-sm font-bold" style={{color:'var(--n-900)'}}>
                 {viewMode === 'day'
                   ? format(currentDate, "d 'de' MMMM", { locale: ptBR })
+                  : viewMode === 'month'
+                  ? format(currentDate, "MMMM 'de' yyyy", { locale: ptBR })
                   : `${format(weekDates[0], "d MMM", { locale: ptBR })} – ${format(weekDates[6], "d MMM yyyy", { locale: ptBR })}`
                 }
               </div>
@@ -319,8 +333,13 @@ const Schedule: React.FC = () => {
               )}
             </div>
             <button
-              onClick={() => setCurrentDate(prev => addDays(prev, viewMode === 'day' ? 1 : 7))}
-              className="p-2 rounded-lg transition-all touch-manipulation hover:bg-black/5"
+              onClick={() => {
+                haptic(8);
+                if (viewMode === 'day') setCurrentDate(prev => addDays(prev, 1));
+                else if (viewMode === 'month') setCurrentDate(prev => addMonths(prev, 1));
+                else setCurrentDate(prev => addDays(prev, 7));
+              }}
+              className="p-2 rounded-lg transition-all touch-manipulation hover:bg-black/5 active:scale-90"
             >
               <ChevronRight size={20} style={{color:'var(--n-500)'}} />
             </button>
@@ -603,6 +622,106 @@ const Schedule: React.FC = () => {
             })}
           </div>
         )}
+
+        {/* ── Month View ── */}
+        {viewMode === 'month' && (() => {
+          const monthStart = startOfMonth(currentDate);
+          const monthEnd   = endOfMonth(currentDate);
+          const monthDays  = eachDayOfInterval({ start: monthStart, end: monthEnd });
+          const leadingBlanks = (() => { const fd = getDay(monthStart); return fd === 0 ? 6 : fd - 1; })();
+          const totalAptsInMonth = monthDays.reduce((acc, d) => acc + (appointments[format(d, 'yyyy-MM-dd')]?.length || 0), 0);
+
+          return (
+            <div className="animate-fade-in-up px-1">
+              {/* Month summary */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {[
+                  { label: 'Atendimentos', value: totalAptsInMonth, color: 'var(--accent)' },
+                  { label: 'Com agenda', value: monthDays.filter(d => (appointments[format(d,'yyyy-MM-dd')]?.length || 0) > 0).length, color: 'var(--success)' },
+                  { label: 'Dias livres', value: monthDays.length - monthDays.filter(d => (appointments[format(d,'yyyy-MM-dd')]?.length || 0) > 0).length, color: 'var(--n-500)' },
+                ].map(s => (
+                  <div key={s.label} className="stat-chip">
+                    <div className="stat-chip-value text-lg" style={{color: s.color}}>{s.value}</div>
+                    <div className="stat-chip-label">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Calendar grid */}
+              <div className="rounded-xl overflow-hidden" style={{background:'var(--n-0)',border:'1px solid var(--n-200)'}}>
+                {/* Day labels */}
+                <div className="grid grid-cols-7 border-b" style={{borderColor:'var(--n-200)'}}>
+                  {['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(d => (
+                    <div key={d} className="text-center py-2 text-[10px] font-bold uppercase tracking-wide" style={{color:'var(--n-500)'}}>{d}</div>
+                  ))}
+                </div>
+                {/* Day cells */}
+                <div className="grid grid-cols-7">
+                  {Array.from({ length: leadingBlanks }).map((_, i) => (
+                    <div key={`blank-${i}`} style={{borderRight:'1px solid var(--n-100)',borderBottom:'1px solid var(--n-100)',minHeight:'56px'}} />
+                  ))}
+                  {monthDays.map((day) => {
+                    const dk = format(day, 'yyyy-MM-dd');
+                    const dayApts = appointments[dk] || [];
+                    const count   = dayApts.length;
+                    const isT     = isToday(day);
+                    const hasDone = dayApts.some(a => a.sessionDone);
+                    const allDone = count > 0 && dayApts.every(a => a.sessionDone);
+                    return (
+                      <button
+                        key={dk}
+                        onClick={() => { haptic(8); setCurrentDate(day); setViewMode('day'); }}
+                        className="flex flex-col items-center justify-start pt-1.5 pb-1 px-0.5 transition-all touch-manipulation active:scale-95 relative"
+                        style={{
+                          minHeight: '56px',
+                          borderRight: '1px solid var(--n-100)',
+                          borderBottom: '1px solid var(--n-100)',
+                          background: isT ? 'var(--accent-light)' : count > 0 ? 'var(--n-50)' : 'var(--n-0)',
+                        }}
+                      >
+                        <span
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold leading-none"
+                          style={{
+                            background: isT ? 'var(--accent)' : 'transparent',
+                            color: isT ? 'var(--n-0)' : 'var(--n-700)',
+                          }}
+                        >
+                          {format(day, 'd')}
+                        </span>
+                        {count > 0 && (
+                          <div className="flex gap-0.5 mt-1 flex-wrap justify-center">
+                            {Array.from({ length: Math.min(count, 4) }).map((_, j) => (
+                              <div
+                                key={j}
+                                className="w-1.5 h-1.5 rounded-full"
+                                style={{ background: allDone ? 'var(--success)' : hasDone ? 'var(--warning)' : 'var(--accent)' }}
+                              />
+                            ))}
+                            {count > 4 && <span className="text-[8px] font-bold" style={{color:'var(--n-500)'}}>+{count-4}</span>}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Legend */}
+              <div className="flex gap-4 mt-3 px-1">
+                {[
+                  { color: 'var(--accent)',  label: 'Agendado' },
+                  { color: 'var(--warning)', label: 'Parcial' },
+                  { color: 'var(--success)', label: 'Concluído' },
+                ].map(l => (
+                  <div key={l.label} className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{background: l.color}} />
+                    <span className="text-[10px]" style={{color:'var(--n-500)'}}>{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {showQuickAdd && (
@@ -779,8 +898,8 @@ const Schedule: React.FC = () => {
                     return (
                       <button
                         key={mg.id}
-                        onClick={() => toggleMuscle(mg.id)}
-                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all touch-manipulation"
+                        onClick={() => { toggleMuscle(mg.id); haptic(6); }}
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all touch-manipulation active:scale-95"
                         style={active
                           ? {background:'var(--accent-light)',border:'1.5px solid var(--accent)',color:'var(--accent)'}
                           : {background:'var(--n-50)',border:'1px solid var(--n-200)',color:'var(--n-600)'}}
@@ -794,22 +913,64 @@ const Schedule: React.FC = () => {
                 </div>
               </div>
 
-              {/* Save */}
-              <div className="flex gap-3 pb-2">
-                <button
-                  onClick={closeAptModal}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-                  style={{border:'1px solid var(--n-200)',color:'var(--n-600)'}}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={() => saveAptChanges(selectedApt.sessionDone ?? false)}
-                  className="btn btn-primary flex-1 py-2.5 text-sm font-bold"
-                >
-                  Salvar treino
-                </button>
+              {/* Notes */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText size={15} style={{color:'var(--n-500)'}} />
+                  <span className="text-sm font-bold" style={{color:'var(--n-900)'}}>Observações da sessão</span>
+                </div>
+                <textarea
+                  value={modalNotes}
+                  onChange={e => setModalNotes(e.target.value)}
+                  placeholder="Ex: Aumentei carga no supino, aluno relatou dor no joelho..."
+                  rows={3}
+                  className="w-full rounded-xl px-3 py-2.5 text-sm resize-none"
+                  style={{
+                    background: 'var(--n-50)',
+                    border: '1px solid var(--n-200)',
+                    color: 'var(--n-900)',
+                    fontFamily: 'var(--font)',
+                    outline: 'none',
+                  }}
+                  onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
+                  onBlur={e => (e.target.style.borderColor = 'var(--n-200)')}
+                />
               </div>
+
+              {/* Delete + Save */}
+              {showDeleteConfirm ? (
+                <div className="rounded-xl p-4" style={{background:'var(--error-light)',border:'1px solid var(--error)'}}>
+                  <p className="text-sm font-bold mb-3" style={{color:'var(--error)'}}>Remover este agendamento?</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-2 rounded-lg text-sm font-semibold" style={{border:'1px solid var(--n-200)',color:'var(--n-600)',background:'var(--n-0)'}}>Cancelar</button>
+                    <button onClick={handleDeleteApt} className="flex-1 py-2 rounded-lg text-sm font-bold text-white" style={{background:'var(--error)'}}>Sim, remover</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-2 pb-2">
+                  <button
+                    onClick={() => { haptic(8); setShowDeleteConfirm(true); }}
+                    className="p-2.5 rounded-xl transition-all touch-manipulation active:scale-90"
+                    style={{border:'1px solid var(--n-200)',color:'var(--error)',background:'var(--error-light)'}}
+                    title="Remover agendamento"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                  <button
+                    onClick={closeAptModal}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                    style={{border:'1px solid var(--n-200)',color:'var(--n-600)',background:'var(--n-0)'}}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => saveAptChanges(selectedApt.sessionDone ?? false)}
+                    className="btn btn-primary flex-1 py-2.5 text-sm font-bold"
+                  >
+                    Salvar treino
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
