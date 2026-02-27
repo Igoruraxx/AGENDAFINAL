@@ -8,7 +8,8 @@
   "build": {
     "env": {
       "CI": "false",
-      "REACT_APP_SUPABASE_URL": "https://irergynffqnkertdagbs.supabase.co"
+      "REACT_APP_SUPABASE_URL": "https://irergynffqnkertdagbs.supabase.co",
+      "REACT_APP_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlyZXJneW5mZnFua2VydGRhZ2JzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4OTM4NjAsImV4cCI6MjA4NzQ2OTg2MH0.qhd5kkVZFGDfeXW41ut57ZB0jvnBf7I5Mn6p-FPDc4I"
     }
   }
 }
