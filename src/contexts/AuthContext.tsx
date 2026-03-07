@@ -3,7 +3,7 @@ import { User, UserPlan, PLAN_LIMITS, PlanLimits } from '../types';
 import { supabase } from '../lib/supabase';
 import { ensureStorageBuckets } from '../lib/setupStorage';
 import type { Session } from '@supabase/supabase-js';
-import type { Profile } from '../types/database';
+import type { Profile, ProfileUpdate } from '../types/database';
 
 export type AuthScreen = 'login' | 'register' | 'forgot';
 
@@ -273,16 +273,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     // Busca histórico atual para anexar
-    const { data: profile } = await supabase.from('profiles').select('subscription_history').eq('id', session.user.id).single();
-    const currentHistory = (profile && Array.isArray(profile.subscription_history)) ? (profile.subscription_history as any[]) : [];
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('subscription_history')
+      .eq('id', session.user.id)
+      .single<{ subscription_history: Profile['subscription_history'] }>();
+
+    const currentHistory = (profile && Array.isArray(profile.subscription_history))
+      ? (profile.subscription_history as any[])
+      : [];
     const updatedHistory = [...currentHistory, newHistoryEntry];
 
-    const { error } = await supabase.from('profiles').update({ 
+    const updatePayload: ProfileUpdate = {
       plan: 'premium',
       subscription_end_date: endDateStr,
       subscription_origin: 'trial',
       subscription_history: updatedHistory
-    }).eq('id', session.user.id);
+    };
+
+    const { error } = await supabase.from('profiles').update(updatePayload).eq('id', session.user.id);
 
     if (!error) {
       setCurrentUser(prev => ({ 

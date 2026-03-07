@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { DollarSign, TrendingUp, Users, Calendar, ChevronLeft, ChevronRight, CheckCircle2, Clock, ArrowUpRight, ArrowDownRight, MessageCircle, BadgeCheck, AlertTriangle, Download } from 'lucide-react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isToday, isBefore, startOfDay, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Student, Appointment } from '../types';
 import FeatureGate from '../components/FeatureGate';
 import { usePermissions } from '../hooks/usePermissions';
@@ -186,7 +186,7 @@ const FinanceContent: React.FC = () => {
     }
 
     return { student, totalStu, doneStu, pendStu, earned, expected };
-  }), [students, monthApts, completedApts, pendingApts, payments]);
+  }), [students, monthApts, completedApts, pendingApts, payments, monthRef]);
 
   const totalExpected = summaries.reduce((s,r) => s+r.expected, 0);
   const totalEarned   = summaries.reduce((s,r) => s+r.earned,   0);
