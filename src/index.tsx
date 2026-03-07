@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
+import { DataServiceProvider } from './services';
 import * as serviceWorkerRegistration from './serviceWorkerRegistration';
 import reportWebVitals from './reportWebVitals';
 
@@ -17,16 +18,18 @@ const root = ReactDOM.createRoot(
 
 root.render(
   <React.StrictMode>
-    {studentPortalMatch ? (
-      // Portal público — sem autenticação
-      <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><div className="spinner" style={{ width: 32, height: 32 }} /></div>}>
-        <StudentPortal token={studentPortalMatch[1]} />
-      </Suspense>
-    ) : (
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    )}
+    <DataServiceProvider>
+      {studentPortalMatch ? (
+        // Portal público — sem autenticação
+        <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><div className="spinner" style={{ width: 32, height: 32 }} /></div>}>
+          <StudentPortal token={studentPortalMatch[1]} />
+        </Suspense>
+      ) : (
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      )}
+    </DataServiceProvider>
   </React.StrictMode>
 );
 
