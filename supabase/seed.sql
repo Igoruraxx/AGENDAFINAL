@@ -1,0 +1,21 @@
+-- ============================================================
+-- Seed data for development / staging environments
+-- Run AFTER all migrations have been applied
+-- ============================================================
+
+-- Default categories available for all users
+-- These are inserted on a per-user basis via the application,
+-- but this file shows representative examples for testing.
+
+-- Example: insert default categories for a specific user
+-- Replace '<user-id>' with an actual UUID from auth.users.
+--
+-- insert into public.categories (user_id, name, color, icon) values
+--   ('<user-id>', 'Treino',        '#6366f1', 'dumbbell'),
+--   ('<user-id>', 'Consulta',      '#10b981', 'stethoscope'),
+--   ('<user-id>', 'Avaliação',     '#f59e0b', 'clipboard'),
+--   ('<user-id>', 'Reposição',     '#ef4444', 'calendar-x'),
+--   ('<user-id>', 'Cardio',        '#3b82f6', 'heart-pulse'),
+--   ('<user-id>', 'Funcional',     '#8b5cf6', 'activity'),
+--   ('<user-id>', 'Musculação',    '#ec4899', 'zap'),
+--   ('<user-id>', 'Financeiro',    '#14b8a6', 'dollar-sign');
