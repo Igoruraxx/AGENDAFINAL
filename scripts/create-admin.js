@@ -38,7 +38,7 @@ if (!supabaseUrl || !serviceRoleKey) {
 
 if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
   console.error(
-    '❌ Defina ADMIN_EMAIL e ADMIN_PASSWORD (ex.: semap.igor@gmail.com / Catarina.12 conforme requerido).'
+    '❌ Defina ADMIN_EMAIL e ADMIN_PASSWORD nas variáveis de ambiente antes de executar este script.'
   );
   process.exit(1);
 }
@@ -59,11 +59,8 @@ async function findUserByEmail(email) {
     const found = data?.users?.find((user) => user.email?.toLowerCase() === email.toLowerCase());
     if (found) return found;
 
-    const hasNextPage = typeof data?.nextPage === 'number' && data.nextPage > page;
-    const isLastBatch = !hasNextPage || (data?.users?.length ?? 0) < perPage;
-
-    if (isLastBatch) break;
-    page = hasNextPage ? data.nextPage : page + 1;
+    if (!data?.nextPage || data.nextPage <= page) break;
+    page = data.nextPage;
   }
 
   return null;
@@ -84,9 +81,8 @@ async function ensureAdminAccount() {
     });
 
     if (error) {
-      if (error.message?.toLowerCase().includes('already')) {
-        adminUser = await findUserByEmail(ADMIN_EMAIL);
-      } else {
+      adminUser = await findUserByEmail(ADMIN_EMAIL);
+      if (!adminUser) {
         throw new Error(`Erro ao criar usuário: ${error.message}`);
       }
     } else {
