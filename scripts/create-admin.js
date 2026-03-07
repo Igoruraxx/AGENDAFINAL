@@ -59,8 +59,9 @@ async function findUserByEmail(email) {
     const found = data?.users?.find((user) => user.email?.toLowerCase() === email.toLowerCase());
     if (found) return found;
 
-    if (!data?.nextPage || data.nextPage <= page) break;
-    page = data.nextPage;
+    const returned = data?.users?.length ?? 0;
+    if (returned < perPage) break;
+    page += 1;
   }
 
   return null;
