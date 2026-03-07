@@ -30,6 +30,8 @@ const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const ADMIN_NAME = process.env.ADMIN_NAME || 'Administrador';
+const USERS_PER_PAGE = 200; // evita trafegar grandes volumes desnecessários
+const MAX_USER_PAGES = 100; // trava para impedir loops infinitos em paginação
 
 if (!supabaseUrl || !serviceRoleKey) {
   console.error('❌ Faltam variáveis de ambiente REACT_APP_SUPABASE_URL ou SUPABASE_SERVICE_KEY.');
@@ -46,11 +48,13 @@ if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
 async function findUserByEmail(email) {
-  const perPage = 200;
   let page = 1;
 
-  while (page <= 100) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+  while (page <= MAX_USER_PAGES) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: USERS_PER_PAGE,
+    });
 
     if (error) {
       throw new Error(`Erro ao listar usuários: ${error.message}`);
@@ -60,7 +64,7 @@ async function findUserByEmail(email) {
     if (found) return found;
 
     const returned = data?.users?.length ?? 0;
-    if (returned < perPage) break;
+    if (returned < USERS_PER_PAGE) break;
     page += 1;
   }
 
