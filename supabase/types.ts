@@ -1,8 +1,23 @@
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+/**
+ * Supabase TypeScript types — auto-generated from the database schema.
+ * Source of truth: supabase/schema.sql and supabase/migrations/*.sql
+ *
+ * Import from src/types/database.ts in application code.
+ * This file is the canonical definition kept alongside the SQL files.
+ */
+
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
 
 export interface Database {
   public: {
     Tables: {
+      // ── profiles ─────────────────────────────────────────
       profiles: {
         Row: {
           id: string;
@@ -55,6 +70,7 @@ export interface Database {
           updated_at?: string;
         };
       };
+      // ── events ───────────────────────────────────────────
       events: {
         Row: {
           id: string;
@@ -117,6 +133,7 @@ export interface Database {
           updated_at?: string;
         };
       };
+      // ── categories ───────────────────────────────────────
       categories: {
         Row: {
           id: string;
@@ -146,6 +163,7 @@ export interface Database {
           updated_at?: string;
         };
       };
+      // ── event_categories ─────────────────────────────────
       event_categories: {
         Row: {
           event_id: string;
@@ -162,6 +180,7 @@ export interface Database {
           category_id?: string;
         };
       };
+      // ── students ─────────────────────────────────────────
       students: {
         Row: {
           id: string;
@@ -169,15 +188,15 @@ export interface Database {
           name: string;
           phone: string;
           plan: 'monthly' | 'session' | 'long_term';
+          plan_duration: number | null;
           value: number;
+          total_value: number | null;
           weekly_frequency: number;
           selected_days: string[];
           selected_times: string[];
           is_consulting: boolean;
           is_active: boolean;
           billing_day: number | null;
-          plan_duration: number | null;
-          total_value: number | null;
           next_billing_date: string | null;
           share_token: string | null;
           created_at: string;
@@ -189,15 +208,15 @@ export interface Database {
           name: string;
           phone?: string;
           plan?: 'monthly' | 'session' | 'long_term';
+          plan_duration?: number | null;
           value?: number;
+          total_value?: number | null;
           weekly_frequency?: number;
           selected_days?: string[];
           selected_times?: string[];
           is_consulting?: boolean;
           is_active?: boolean;
           billing_day?: number | null;
-          plan_duration?: number | null;
-          total_value?: number | null;
           next_billing_date?: string | null;
           share_token?: string | null;
           created_at?: string;
@@ -207,20 +226,21 @@ export interface Database {
           name?: string;
           phone?: string;
           plan?: 'monthly' | 'session' | 'long_term';
+          plan_duration?: number | null;
           value?: number;
+          total_value?: number | null;
           weekly_frequency?: number;
           selected_days?: string[];
           selected_times?: string[];
           is_consulting?: boolean;
           is_active?: boolean;
           billing_day?: number | null;
-          plan_duration?: number | null;
-          total_value?: number | null;
           next_billing_date?: string | null;
           share_token?: string | null;
           updated_at?: string;
         };
       };
+      // ── appointments ─────────────────────────────────────
       appointments: {
         Row: {
           id: string;
@@ -259,6 +279,7 @@ export interface Database {
           updated_at?: string;
         };
       };
+      // ── evolution_photos ─────────────────────────────────
       evolution_photos: {
         Row: {
           id: string;
@@ -287,6 +308,7 @@ export interface Database {
           back_url?: string | null;
         };
       };
+      // ── bioimpedance ─────────────────────────────────────
       bioimpedance: {
         Row: {
           id: string;
@@ -330,6 +352,7 @@ export interface Database {
           muscle_pct?: number;
         };
       };
+      // ── measurements ─────────────────────────────────────
       measurements: {
         Row: {
           id: string;
@@ -388,6 +411,7 @@ export interface Database {
           sf_abdominal?: number;
         };
       };
+      // ── payments ─────────────────────────────────────────
       payments: {
         Row: {
           id: string;
@@ -425,32 +449,33 @@ export interface Database {
   };
 }
 
-// Helper types for easier usage
-export type Profile = Database['public']['Tables']['profiles']['Row'];
-export type ProfileInsert = Database['public']['Tables']['profiles']['Insert'];
-export type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
+// ── Convenience aliases ───────────────────────────────────────────────────────
 
-export type DbEvent = Database['public']['Tables']['events']['Row'];
-export type DbEventInsert = Database['public']['Tables']['events']['Insert'];
-export type DbEventUpdate = Database['public']['Tables']['events']['Update'];
+export type Profile            = Database['public']['Tables']['profiles']['Row'];
+export type ProfileInsert      = Database['public']['Tables']['profiles']['Insert'];
+export type ProfileUpdate      = Database['public']['Tables']['profiles']['Update'];
 
-export type DbCategory = Database['public']['Tables']['categories']['Row'];
-export type DbCategoryInsert = Database['public']['Tables']['categories']['Insert'];
-export type DbCategoryUpdate = Database['public']['Tables']['categories']['Update'];
+export type DbEvent            = Database['public']['Tables']['events']['Row'];
+export type DbEventInsert      = Database['public']['Tables']['events']['Insert'];
+export type DbEventUpdate      = Database['public']['Tables']['events']['Update'];
 
-export type DbEventCategory = Database['public']['Tables']['event_categories']['Row'];
+export type DbCategory         = Database['public']['Tables']['categories']['Row'];
+export type DbCategoryInsert   = Database['public']['Tables']['categories']['Insert'];
+export type DbCategoryUpdate   = Database['public']['Tables']['categories']['Update'];
 
-export type DbStudent = Database['public']['Tables']['students']['Row'];
-export type DbStudentInsert = Database['public']['Tables']['students']['Insert'];
-export type DbStudentUpdate = Database['public']['Tables']['students']['Update'];
+export type DbEventCategory    = Database['public']['Tables']['event_categories']['Row'];
 
-export type DbAppointment = Database['public']['Tables']['appointments']['Row'];
+export type DbStudent          = Database['public']['Tables']['students']['Row'];
+export type DbStudentInsert    = Database['public']['Tables']['students']['Insert'];
+export type DbStudentUpdate    = Database['public']['Tables']['students']['Update'];
+
+export type DbAppointment      = Database['public']['Tables']['appointments']['Row'];
 export type DbAppointmentInsert = Database['public']['Tables']['appointments']['Insert'];
 export type DbAppointmentUpdate = Database['public']['Tables']['appointments']['Update'];
 
-export type DbEvolutionPhoto = Database['public']['Tables']['evolution_photos']['Row'];
-export type DbBioimpedance = Database['public']['Tables']['bioimpedance']['Row'];
-export type DbMeasurement = Database['public']['Tables']['measurements']['Row'];
-export type DbPayment = Database['public']['Tables']['payments']['Row'];
-export type DbPaymentInsert = Database['public']['Tables']['payments']['Insert'];
-export type DbPaymentUpdate = Database['public']['Tables']['payments']['Update'];
+export type DbEvolutionPhoto   = Database['public']['Tables']['evolution_photos']['Row'];
+export type DbBioimpedance     = Database['public']['Tables']['bioimpedance']['Row'];
+export type DbMeasurement      = Database['public']['Tables']['measurements']['Row'];
+export type DbPayment          = Database['public']['Tables']['payments']['Row'];
+export type DbPaymentInsert    = Database['public']['Tables']['payments']['Insert'];
+export type DbPaymentUpdate    = Database['public']['Tables']['payments']['Update'];

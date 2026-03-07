@@ -1,5 +1,7 @@
 -- ╔══════════════════════════════════════════════════════════════╗
 -- ║  FITPRO AGENDA PERSONAL — Supabase Database Schema        ║
+-- ║  Reference schema — see supabase/migrations/ for the      ║
+-- ║  versioned migration files to apply to Supabase.          ║
 -- ║  Execute este SQL no Supabase Dashboard → SQL Editor       ║
 -- ╚══════════════════════════════════════════════════════════════╝
 
@@ -237,7 +239,98 @@ create index idx_payments_user_month on public.payments(user_id, month_ref);
 create index idx_payments_student on public.payments(student_id);
 
 -- ────────────────────────────────────────────────────
--- 8. STORAGE BUCKETS (fotos de evolução e bioimpedância)
+-- 8. EVENTS (agenda events and tasks)
+-- ────────────────────────────────────────────────────
+create table if not exists public.events (
+  id           uuid default gen_random_uuid() primary key,
+  user_id      uuid references public.profiles(id) on delete cascade not null,
+  student_id   uuid,
+  title        text not null,
+  description  text,
+  type         text not null default 'appointment'
+                 check (type in ('appointment', 'task', 'reminder', 'block')),
+  status       text not null default 'scheduled'
+                 check (status in ('scheduled', 'completed', 'cancelled', 'no_show')),
+  date         date not null,
+  start_time   text not null,
+  end_time     text,
+  duration     integer not null default 60,
+  is_recurring boolean not null default false,
+  recurrence   jsonb,
+  location     text,
+  notes        text,
+  color        text,
+  deleted_at   timestamptz,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+alter table public.events enable row level security;
+
+create policy "Users can manage own events"
+  on public.events for all using (auth.uid() = user_id);
+
+create trigger events_updated_at
+  before update on public.events
+  for each row execute function public.update_updated_at();
+
+create index idx_events_user_date   on public.events(user_id, date) where deleted_at is null;
+create index idx_events_student     on public.events(student_id)    where deleted_at is null;
+create index idx_events_type_status on public.events(user_id, type, status);
+create index idx_events_id_user_id  on public.events(id, user_id);
+
+-- ────────────────────────────────────────────────────
+-- 9. CATEGORIES (user-defined labels for events/tasks)
+-- ────────────────────────────────────────────────────
+create table if not exists public.categories (
+  id         uuid default gen_random_uuid() primary key,
+  user_id    uuid references public.profiles(id) on delete cascade not null,
+  name       text not null,
+  color      text not null default '#6366f1',
+  icon       text,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, name)
+);
+
+alter table public.categories enable row level security;
+
+create policy "Users can manage own categories"
+  on public.categories for all using (auth.uid() = user_id);
+
+create trigger categories_updated_at
+  before update on public.categories
+  for each row execute function public.update_updated_at();
+
+create index idx_categories_user on public.categories(user_id) where deleted_at is null;
+
+-- ────────────────────────────────────────────────────
+-- 10. EVENT_CATEGORIES (N:N: events <-> categories)
+-- ────────────────────────────────────────────────────
+create table if not exists public.event_categories (
+  event_id    uuid references public.events(id)     on delete cascade not null,
+  category_id uuid references public.categories(id) on delete cascade not null,
+  created_at  timestamptz not null default now(),
+  primary key (event_id, category_id)
+);
+
+alter table public.event_categories enable row level security;
+
+create policy "Users can manage own event_categories"
+  on public.event_categories for all
+  using (
+    exists (
+      select 1 from public.events e
+      where e.id = event_id and e.user_id = auth.uid()
+    )
+  );
+
+create index idx_event_categories_event    on public.event_categories(event_id);
+create index idx_event_categories_category on public.event_categories(category_id);
+
+-- ────────────────────────────────────────────────────
+-- 11. STORAGE BUCKETS (fotos de evolução e bioimpedância)
 -- ────────────────────────────────────────────────────
 insert into storage.buckets (id, name, public)
 values ('evolution-photos', 'evolution-photos', false)
