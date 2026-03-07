@@ -49,7 +49,7 @@ async function findUserByEmail(email) {
   const perPage = 200;
   let page = 1;
 
-  while (true) {
+  while (page <= 100) {
     const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
 
     if (error) {
@@ -82,6 +82,7 @@ async function ensureAdminAccount() {
     });
 
     if (error) {
+      console.warn('⚠️ Falha ao criar usuário, verificando existência:', error.message);
       adminUser = await findUserByEmail(ADMIN_EMAIL);
       if (!adminUser) {
         throw new Error(`Erro ao criar usuário: ${error.message}`);
