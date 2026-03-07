@@ -7,6 +7,7 @@
  *    SUPABASE_SERVICE_KEY=eyJ... (chave service_role)
  *    ADMIN_EMAIL=semap.igor@gmail.com
  *    ADMIN_PASSWORD=Catarina.12
+ *    ADMIN_NAME=Administrador (opcional)
  *
  * 2. Execute: node scripts/create-admin.js
  */
@@ -26,8 +27,9 @@ const { createClient } = require('@supabase/supabase-js');
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY;
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'semap.igor@gmail.com';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Catarina.12';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const ADMIN_NAME = process.env.ADMIN_NAME || 'Administrador';
 
 if (!supabaseUrl || !serviceRoleKey) {
   console.error('❌ Faltam variáveis de ambiente REACT_APP_SUPABASE_URL ou SUPABASE_SERVICE_KEY.');
@@ -35,7 +37,9 @@ if (!supabaseUrl || !serviceRoleKey) {
 }
 
 if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
-  console.error('❌ Defina ADMIN_EMAIL e ADMIN_PASSWORD (ou use os valores padrão exigidos).');
+  console.error(
+    '❌ Defina ADMIN_EMAIL e ADMIN_PASSWORD (ex.: semap.igor@gmail.com / Catarina.12 conforme requerido).'
+  );
   process.exit(1);
 }
 
@@ -55,8 +59,11 @@ async function findUserByEmail(email) {
     const found = data?.users?.find((user) => user.email?.toLowerCase() === email.toLowerCase());
     if (found) return found;
 
-    if (!data?.nextPage || data.nextPage <= page) break;
-    page = data.nextPage;
+    const hasNextPage = typeof data?.nextPage === 'number' && data.nextPage > page;
+    const isLastBatch = !hasNextPage || (data?.users?.length ?? 0) < perPage;
+
+    if (isLastBatch) break;
+    page = hasNextPage ? data.nextPage : page + 1;
   }
 
   return null;
@@ -73,7 +80,7 @@ async function ensureAdminAccount() {
       email: ADMIN_EMAIL,
       password: ADMIN_PASSWORD,
       email_confirm: true,
-      user_metadata: { name: 'Administrador' },
+      user_metadata: { name: ADMIN_NAME },
     });
 
     if (error) {
@@ -99,7 +106,7 @@ async function ensureAdminAccount() {
     .upsert(
       {
         id: adminUser.id,
-        name: adminUser.user_metadata?.name || 'Administrador',
+        name: adminUser.user_metadata?.name || ADMIN_NAME,
         email: ADMIN_EMAIL,
         is_admin: true,
       },
